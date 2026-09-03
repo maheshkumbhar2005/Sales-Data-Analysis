@@ -26,6 +26,10 @@ def load_sales_data(path: Path) -> pd.DataFrame:
 
 
 def summarize_sales(df: pd.DataFrame) -> dict:
+    df = df.copy()
+    if "Month" not in df.columns:
+        df["Month"] = df["Date"].dt.to_period("M").astype(str)
+
     total_revenue = df["Total_Sales"].sum()
     total_units = df["Units_Sold"].sum()
     avg_order_value = df["Total_Sales"].mean()
