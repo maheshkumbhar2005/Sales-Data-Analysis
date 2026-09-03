@@ -1,0 +1,30 @@
+Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales
+2025-01-05,Laptop,Electronics,North,10,800,8000
+2025-01-15,Mouse,Accessories,South,25,25,625
+2025-01-22,Keyboard,Accessories,West,18,45,810
+2025-02-03,Monitor,Electronics,East,12,220,2640
+2025-02-10,Desk Chair,Furniture,North,8,150,1200
+2025-02-18,Printer,Electronics,South,7,260,1820
+2025-03-05,Office Table,Furniture,West,5,400,2000
+2025-03-10,USB Cable,Accessories,East,40,12,480
+2025-03-22,Projector,Electronics,North,6,500,3000
+2025-04-08,Notebook,Stationery,South,50,8,400
+2025-04-15,Pen Set,Stationery,West,30,6,180
+2025-04-27,Monitor,Electronics,East,10,220,2200
+2025-05-09,Chair,Furniture,North,9,180,1620
+2025-05-14,Webcam,Electronics,South,15,90,1350
+2025-05-25,Keyboard,Accessories,West,20,45,900
+2025-06-11,Laptop,Electronics,East,8,800,6400
+2025-06-19,Desk Lamp,Accessories,North,22,35,770
+2025-07-03,Notebook,Stationery,East,45,8,360
+2025-07-16,Office Chair,Furniture,South,7,220,1540
+2025-08-05,Printer,Electronics,West,6,260,1560
+2025-08-12,USB Drive,Accessories,North,28,20,560
+2025-09-02,Monitor,Electronics,South,11,220,2420
+2025-09-20,Desk Organizer,Stationery,West,35,14,490
+2025-10-04,Laptop,Electronics,East,7,800,5600
+2025-10-18,Chair,Furniture,North,10,180,1800
+2025-11-01,Webcam,Electronics,South,12,90,1080
+2025-11-11,Pen Set,Stationery,West,40,6,240
+2025-12-05,Projector,Electronics,North,5,500,2500
+2025-12-15,Keyboard,Accessories,East,25,45,1125
