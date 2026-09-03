@@ -1,12 +1,22 @@
 # Sales Data Analysis
 
-This project provides a simple sales analysis starter using Python and pandas. It loads a sample sales dataset, calculates key metrics, and prints an overview of revenue performance by category and month.
+This project is a basic but useful sales analytics starter built with Python, pandas, and seaborn. It reads a sales dataset, summarizes key business metrics, and generates charts and export files for quick analysis.
+
+## Features
+
+- Loads a sample sales dataset from `data/sales_data.csv`
+- Calculates core KPIs such as total revenue, total units sold, average order value, and average unit price
+- Identifies top category, region, and product by sales volume
+- Builds a sales dashboard with multiple charts
+- Exports summary tables and JSON metrics to the `output/` folder
+- Keeps the existing MIT license intact
 
 ## Project structure
 
-- `data/` – sample sales dataset
-- `src/` – analysis scripts
-- `main.py` – entry point for the project
+- `data/` – sample dataset
+- `src/` – analysis logic
+- `output/` – generated charts and summaries
+- `main.py` – entry point
 - `requirements.txt` – Python dependencies
 - `LICENSE` – MIT license retained from the repository
 
@@ -26,7 +36,18 @@ This project provides a simple sales analysis starter using Python and pandas. I
    python main.py
    ```
 
+## Output files
+
+After running the project, the following files are generated in `output/`:
+
+- `sales_dashboard.png`
+- `revenue_trend.png`
+- `category_sales.csv`
+- `region_sales.csv`
+- `monthly_sales.csv`
+- `sales_summary.json`
+
 ## Notes
 
-- The existing MIT license in this repository is kept intact.
-- This is a basic starter project meant for learning and expansion.
+- The repository's MIT license remains unchanged.
+- This is a starter project intended for learning and expansion into a real dashboard or business reporting workflow.
