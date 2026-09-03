@@ -36,6 +36,18 @@ This project is a basic but useful sales analytics starter built with Python, pa
    python main.py
    ```
 
+## Web dashboard
+
+A simple browser dashboard is also included using Streamlit.
+
+Run it with:
+
+```bash
+streamlit run dashboard.py
+```
+
+This dashboard lets you filter by region and category, view sales KPIs, and inspect trend charts without writing Python code in the terminal.
+
 ## Output files
 
 After running the project, the following files are generated in `output/`:
