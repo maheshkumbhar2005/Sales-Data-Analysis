@@ -230,6 +230,27 @@ def summarize_sales(df: pd.DataFrame) -> dict:
     }
 
 
+def generate_business_insights(summary: dict) -> list[str]:
+    """Create concise, data-driven insights for the dashboard overview."""
+    monthly = summary["monthly_sales"]
+    latest = monthly.iloc[-1]
+    growth = latest["MoM_Growth_%"]
+    if len(monthly) < 2:
+        growth_insight = "Not enough monthly history to calculate revenue growth."
+    elif growth >= 0:
+        growth_insight = f"Revenue increased {growth:.1f}% compared with the previous month."
+    else:
+        growth_insight = f"Revenue decreased {abs(growth):.1f}% compared with the previous month."
+
+    return [
+        f"{summary['top_category']} generated the highest revenue.",
+        f"{summary['top_region']} region contributed the most sales.",
+        growth_insight,
+        f"{summary['top_product']} is the highest-selling product by units.",
+        f"{summary['best_month']} recorded the highest monthly revenue.",
+    ]
+
+
 def engineer_monthly_features(df: pd.DataFrame) -> pd.DataFrame:
     """Build time-series features used by the sales forecasting model."""
     if df.empty:

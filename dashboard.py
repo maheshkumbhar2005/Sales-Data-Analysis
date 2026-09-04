@@ -11,6 +11,7 @@ from src.sales_analysis import (
     DATA_PATH,
     compare_periods,
     forecast_sales,
+    generate_business_insights,
     load_sales_data,
     filter_sales_data,
     summarize_sales,
@@ -246,10 +247,9 @@ def main() -> None:
 
         insight_col, anomaly_col = st.columns(2, gap="large")
         with insight_col:
-            st.subheader("Business insights")
-            st.write(f"**Top product:** {filtered_summary['top_product']}")
-            st.write(f"**Top category:** {filtered_summary['top_category']}")
-            st.write(f"**Top region:** {filtered_summary['top_region']}")
+            st.subheader("💡 Insights")
+            for insight in generate_business_insights(filtered_summary):
+                st.markdown(f"- {insight}")
         with anomaly_col:
             st.subheader("Anomaly watch")
             if filtered_summary["anomalies"].empty:

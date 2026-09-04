@@ -10,6 +10,7 @@ from src.sales_analysis import (
     engineer_monthly_features,
     filter_sales_data,
     forecast_sales,
+    generate_business_insights,
     load_sales_data,
     summarize_sales,
 )
@@ -98,6 +99,11 @@ def test_summarize_sales_calculates_expected_values():
     assert summary["best_month"] == "2025-01"
     assert summary["worst_month"] == "2025-02"
     assert summary["category_sales"]["Contribution_%"].sum() == 100
+    insights = generate_business_insights(summary)
+    assert insights[0] == "Electronics generated the highest revenue."
+    assert insights[1] == "North region contributed the most sales."
+    assert insights[3] == "Laptop is the highest-selling product by units."
+    assert insights[4] == "2025-01 recorded the highest monthly revenue."
 
 
 def test_summarize_sales_includes_months_without_rows():
