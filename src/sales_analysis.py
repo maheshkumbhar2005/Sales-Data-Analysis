@@ -280,6 +280,7 @@ def export_summary(summary: dict) -> None:
     summary["category_sales"].to_csv(OUTPUT_DIR / "category_sales.csv", index=False)
     summary["region_sales"].to_csv(OUTPUT_DIR / "region_sales.csv", index=False)
     summary["monthly_sales"].to_csv(OUTPUT_DIR / "monthly_sales.csv", index=False)
+    summary["anomalies"].to_csv(OUTPUT_DIR / "sales_anomalies.csv", index=False)
 
     metrics = {
         "total_revenue": float(summary["total_revenue"]),

@@ -89,6 +89,7 @@ After running the project, the following files are generated in `output/`:
 - `region_sales.csv`
 - `monthly_sales.csv`
 - `sales_summary.json`
+- `sales_anomalies.csv`
 
 ## Notes
 

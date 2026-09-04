@@ -320,6 +320,7 @@ def main() -> None:
             st.caption("No unusual monthly sales patterns detected.")
         else:
             st.dataframe(filtered_summary["anomalies"], use_container_width=True, hide_index=True)
+            dataframe_download(filtered_summary["anomalies"], "sales_anomalies.csv")
 
     top_products = filtered_summary["top_products"]
     product_chart_col, product_table_col = st.columns([1.15, 1], gap="large")
