@@ -230,129 +230,91 @@ def main() -> None:
     comparison = get_period_comparison(comparison_base, start_date, end_date)
     latest_growth = monthly.iloc[-1]["MoM_Growth_%"] if len(monthly) > 1 else None
 
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("Revenue", f"${filtered_summary['total_revenue']:,.0f}", f"{comparison['changes']['revenue_pct']:+.1f}% vs prior")
-    col2.metric("Units sold", f"{filtered_summary['total_units']:,}", f"{comparison['changes']['units']:+,.0f} vs prior")
-    col3.metric("Estimated profit", f"${filtered_summary['total_profit']:,.0f}", f"{comparison['changes']['profit']:+,.0f} vs prior")
-    col4.metric("Margin", f"{filtered_summary['estimated_margin']:.1f}%", f"{comparison['changes']['margin']:+.1f} pts")
-    col5.metric("Best month", filtered_summary["best_month"])
-    col6.metric("Worst month", filtered_summary["worst_month"])
+    overview_tab, trends_tab, products_tab, geography_tab, forecast_tab, data_tab = st.tabs(
+        ["📊 Overview", "📈 Trends", "🏆 Products", "🌍 Geography", "🤖 Forecast", "🗂️ Data"]
+    )
 
-    trend_col, download_col = st.columns([4, 1], gap="large")
-    with trend_col:
-        st.subheader("Performance pulse")
-        st.caption("Solid lines show historical results. Dotted lines show the ML forecast.")
-        revenue_trend = go.Figure()
-        revenue_trend.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Total_Sales"], mode="lines+markers", name="Historical revenue", line={"color": "#e4572e"}))
-        revenue_trend.add_trace(go.Scatter(x=forecast["Forecast_Month"], y=forecast["Predicted_Revenue"], mode="lines+markers", name="Forecast revenue", line={"color": "#e4572e", "dash": "dot"}))
-        revenue_trend = style_chart(revenue_trend)
+    with overview_tab:
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        col1.metric("Revenue", f"${filtered_summary['total_revenue']:,.0f}", f"{comparison['changes']['revenue_pct']:+.1f}% vs prior")
+        col2.metric("Units sold", f"{filtered_summary['total_units']:,}", f"{comparison['changes']['units']:+,.0f} vs prior")
+        col3.metric("Estimated profit", f"${filtered_summary['total_profit']:,.0f}", f"{comparison['changes']['profit']:+,.0f} vs prior")
+        col4.metric("Margin", f"{filtered_summary['estimated_margin']:.1f}%", f"{comparison['changes']['margin']:+.1f} pts")
+        col5.metric("Best month", filtered_summary["best_month"])
+        col6.metric("Worst month", filtered_summary["worst_month"])
+
+        insight_col, anomaly_col = st.columns(2, gap="large")
+        with insight_col:
+            st.subheader("Business insights")
+            st.write(f"**Top product:** {filtered_summary['top_product']}")
+            st.write(f"**Top category:** {filtered_summary['top_category']}")
+            st.write(f"**Top region:** {filtered_summary['top_region']}")
+        with anomaly_col:
+            st.subheader("Anomaly watch")
+            if filtered_summary["anomalies"].empty:
+                st.caption("No unusual monthly sales patterns detected.")
+            else:
+                st.dataframe(filtered_summary["anomalies"], use_container_width=True, hide_index=True)
+
+    with trends_tab:
+        st.subheader("Revenue and units over time")
+        revenue_trend = style_chart(px.line(monthly, x="Month", y="Total_Sales", markers=True, labels={"Total_Sales": "Revenue"}))
         st.plotly_chart(revenue_trend, use_container_width=True, theme=None)
-        units_trend = go.Figure()
-        units_trend.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Units_Sold"], mode="lines+markers", name="Historical units", line={"color": "#168c83"}))
-        units_trend.add_trace(go.Scatter(x=forecast["Forecast_Month"], y=forecast["Predicted_Units"], mode="lines+markers", name="Forecast units", line={"color": "#168c83", "dash": "dot"}))
-        units_trend = style_chart(units_trend, height=260)
+        units_trend = style_chart(px.line(monthly, x="Month", y="Units_Sold", markers=True, labels={"Units_Sold": "Units sold"}), height=280)
         st.plotly_chart(units_trend, use_container_width=True, theme=None)
-    with download_col:
-        st.subheader("Export")
-        dataframe_download(filtered_df, "filtered_sales_data.csv")
+        profit_trend = style_chart(px.bar(monthly, x="Month", y="Estimated_Profit", color_discrete_sequence=["#e7a93b"], labels={"Estimated_Profit": "Estimated profit"}), height=280)
+        st.plotly_chart(profit_trend, use_container_width=True, theme=None)
 
-    chart_col1, chart_col2 = st.columns(2)
-    with chart_col1:
-        st.subheader("Category contribution")
-        category_chart = style_chart(
-            px.bar(
-                filtered_summary["category_sales"],
-                x="Category",
-                y="Contribution_%",
-                color="Category",
-                color_discrete_sequence=["#168c83", "#e4572e", "#e7a93b", "#4e79a7"],
-                labels={"Contribution_%": "Share of revenue"},
-                text_auto=".1f",
-            )
-        )
-        st.plotly_chart(category_chart, use_container_width=True, theme=None)
-        dataframe_download(filtered_summary["category_sales"], "category_sales.csv")
+    with products_tab:
+        top_products = filtered_summary["top_products"]
+        product_chart_col, product_table_col = st.columns([1.15, 1], gap="large")
+        with product_chart_col:
+            st.subheader("Top products by units")
+            product_chart = style_chart(px.bar(top_products.sort_values("Units_Sold"), x="Units_Sold", y="Product", orientation="h", color_discrete_sequence=["#168c83"], labels={"Units_Sold": "Units sold"}))
+            st.plotly_chart(product_chart, use_container_width=True, theme=None)
+        with product_table_col:
+            st.subheader("Product detail")
+            st.dataframe(top_products, use_container_width=True, hide_index=True, column_config={"Units_Sold": st.column_config.NumberColumn("Units sold", format="%,d")})
+            dataframe_download(top_products, "top_products.csv")
 
-    with chart_col2:
-        st.subheader("Region contribution")
-        region_chart = style_chart(
-            px.bar(
-                filtered_summary["region_sales"],
-                x="Region",
-                y="Contribution_%",
-                color="Region",
-                color_discrete_sequence=["#e4572e", "#168c83", "#e7a93b", "#4e79a7"],
-                labels={"Contribution_%": "Share of revenue"},
-                text_auto=".1f",
-            )
-        )
-        st.plotly_chart(region_chart, use_container_width=True, theme=None)
-        dataframe_download(filtered_summary["region_sales"], "region_sales.csv")
+    with geography_tab:
+        category_col, region_col = st.columns(2)
+        with category_col:
+            st.subheader("Category contribution")
+            category_chart = style_chart(px.bar(filtered_summary["category_sales"], x="Category", y="Contribution_%", color="Category", color_discrete_sequence=["#168c83", "#e4572e", "#e7a93b", "#4e79a7"], labels={"Contribution_%": "Share of revenue"}, text_auto=".1f"))
+            st.plotly_chart(category_chart, use_container_width=True, theme=None)
+            dataframe_download(filtered_summary["category_sales"], "category_sales.csv")
+        with region_col:
+            st.subheader("Region contribution")
+            region_chart = style_chart(px.bar(filtered_summary["region_sales"], x="Region", y="Contribution_%", color="Region", color_discrete_sequence=["#e4572e", "#168c83", "#e7a93b", "#4e79a7"], labels={"Contribution_%": "Share of revenue"}, text_auto=".1f"))
+            st.plotly_chart(region_chart, use_container_width=True, theme=None)
+            dataframe_download(filtered_summary["region_sales"], "region_sales.csv")
 
-    profit_col, anomaly_col = st.columns(2, gap="large")
-    with profit_col:
-        st.subheader("Profit and margin")
-        profit_chart = style_chart(
-            px.bar(
-                monthly,
-                x="Month",
-                y="Estimated_Profit",
-                color_discrete_sequence=["#e7a93b"],
-                labels={"Estimated_Profit": "Estimated profit"},
-            )
-        )
-        st.plotly_chart(profit_chart, use_container_width=True, theme=None)
-    with anomaly_col:
-        st.subheader("Anomaly watch")
-        anomaly_chart = style_chart(
-            px.scatter(
-                monthly,
-                x="Month",
-                y="Total_Sales",
-                color="Is_Anomaly",
-                size="Units_Sold",
-                color_discrete_map={False: "#168c83", True: "#e4572e"},
-                labels={"Total_Sales": "Revenue", "Is_Anomaly": "Unusual month"},
-            )
-        )
-        st.plotly_chart(anomaly_chart, use_container_width=True, theme=None)
-        if filtered_summary["anomalies"].empty:
-            st.caption("No unusual monthly sales patterns detected.")
-        else:
-            st.dataframe(filtered_summary["anomalies"], use_container_width=True, hide_index=True)
-            dataframe_download(filtered_summary["anomalies"], "sales_anomalies.csv")
-
-    top_products = filtered_summary["top_products"]
-    product_chart_col, product_table_col = st.columns([1.15, 1], gap="large")
-    with product_chart_col:
-        st.subheader("Top products by units")
-        product_chart = style_chart(
-            px.bar(
-                top_products.sort_values("Units_Sold"),
-                x="Units_Sold",
-                y="Product",
-                orientation="h",
-                color_discrete_sequence=["#168c83"],
-                labels={"Units_Sold": "Units sold"},
-            )
-        )
-        st.plotly_chart(product_chart, use_container_width=True, theme=None)
-    with product_table_col:
-        st.subheader("Product detail")
-        st.dataframe(
-            top_products,
-            use_container_width=True,
-            hide_index=True,
-            column_config={"Units_Sold": st.column_config.NumberColumn("Units sold", format="%,d")},
-        )
-
-    with st.expander("Monthly detail"):
-        st.dataframe(monthly, use_container_width=True, hide_index=True)
-        dataframe_download(monthly, "monthly_sales.csv")
-
-    with st.expander("Future sales prediction"):
+    with forecast_tab:
+        st.subheader("ML sales prediction")
+        st.caption("Solid lines show historical results. Dotted lines show the forecast.")
+        revenue_forecast = go.Figure()
+        revenue_forecast.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Total_Sales"], mode="lines+markers", name="Historical revenue", line={"color": "#e4572e"}))
+        revenue_forecast.add_trace(go.Scatter(x=forecast["Forecast_Month"], y=forecast["Predicted_Revenue"], mode="lines+markers", name="Forecast revenue", line={"color": "#e4572e", "dash": "dot"}))
+        st.plotly_chart(style_chart(revenue_forecast), use_container_width=True, theme=None)
+        units_forecast = go.Figure()
+        units_forecast.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Units_Sold"], mode="lines+markers", name="Historical units", line={"color": "#168c83"}))
+        units_forecast.add_trace(go.Scatter(x=forecast["Forecast_Month"], y=forecast["Predicted_Units"], mode="lines+markers", name="Forecast units", line={"color": "#168c83", "dash": "dot"}))
+        st.plotly_chart(style_chart(units_forecast, height=280), use_container_width=True, theme=None)
         st.dataframe(forecast, use_container_width=True, hide_index=True)
         dataframe_download(forecast, "sales_forecast.csv")
+
+    with data_tab:
+        st.subheader("Filtered sales data")
+        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+        dataframe_download(filtered_df, "filtered_sales_data.csv")
+        st.subheader("Monthly detail")
+        st.dataframe(monthly, use_container_width=True, hide_index=True)
+        dataframe_download(monthly, "monthly_sales.csv")
+        if not filtered_summary["anomalies"].empty:
+            st.subheader("Detected anomalies")
+            st.dataframe(filtered_summary["anomalies"], use_container_width=True, hide_index=True)
+            dataframe_download(filtered_summary["anomalies"], "sales_anomalies.csv")
 
 
 if __name__ == "__main__":

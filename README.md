@@ -8,6 +8,7 @@ This project is a sales analytics dashboard built with Python, pandas, Plotly, a
 - Calculates core KPIs such as total revenue, total units sold, average order value, and average unit price
 - Identifies top category, region, and product by sales volume
 - Builds an interactive Streamlit dashboard with Plotly charts
+- Organizes the dashboard into Overview, Trends, Products, Geography, Forecast, and Data tabs
 - Filters results by date range, region, and category
 - Downloads filtered sales data and summary tables
 - Forecasts future monthly revenue and units with an ML model
