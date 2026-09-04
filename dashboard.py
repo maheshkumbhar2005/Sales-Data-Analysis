@@ -4,8 +4,9 @@ from io import StringIO
 
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 
-from src.sales_analysis import DATA_PATH, load_sales_data, summarize_sales
+from src.sales_analysis import DATA_PATH, forecast_sales, load_sales_data, summarize_sales
 
 
 st.set_page_config(page_title="Sales Intelligence", page_icon="📈", layout="wide")
@@ -141,6 +142,11 @@ def get_sales_summary(filtered_df):
     return summarize_sales(filtered_df)
 
 
+@st.cache_data
+def get_sales_forecast(filtered_df, periods: int):
+    return forecast_sales(filtered_df, periods)
+
+
 def dataframe_download(dataframe, filename: str) -> None:
     buffer = StringIO()
     dataframe.to_csv(buffer, index=False)
@@ -190,6 +196,7 @@ def main() -> None:
         categories = sorted(df["Category"].unique())
         selected_regions = st.multiselect("Regions", regions, default=regions)
         selected_categories = st.multiselect("Categories", categories, default=categories)
+        forecast_periods = st.slider("Forecast months", min_value=1, max_value=12, value=3)
 
     start_date, end_date = selected_date_range(date_range, df["Date"].min().date())
     filtered_df = df[
@@ -204,6 +211,7 @@ def main() -> None:
 
     filtered_summary = get_sales_summary(filtered_df)
     monthly = filtered_summary["monthly_sales"]
+    forecast = get_sales_forecast(filtered_df, forecast_periods)
     latest_growth = monthly.iloc[-1]["MoM_Growth_%"] if len(monthly) > 1 else None
 
     col1, col2, col3, col4 = st.columns(4)
@@ -215,14 +223,16 @@ def main() -> None:
     trend_col, download_col = st.columns([4, 1], gap="large")
     with trend_col:
         st.subheader("Performance pulse")
-        revenue_trend = style_chart(
-            px.line(monthly, x="Month", y="Total_Sales", markers=True, labels={"Total_Sales": "Revenue"})
-        )
+        st.caption("Solid lines show historical results. Dotted lines show the ML forecast.")
+        revenue_trend = go.Figure()
+        revenue_trend.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Total_Sales"], mode="lines+markers", name="Historical revenue", line={"color": "#e4572e"}))
+        revenue_trend.add_trace(go.Scatter(x=forecast["Forecast_Month"], y=forecast["Predicted_Revenue"], mode="lines+markers", name="Forecast revenue", line={"color": "#e4572e", "dash": "dot"}))
+        revenue_trend = style_chart(revenue_trend)
         st.plotly_chart(revenue_trend, use_container_width=True, theme=None)
-        units_trend = style_chart(
-            px.line(monthly, x="Month", y="Units_Sold", markers=True, labels={"Units_Sold": "Units sold"}),
-            height=260,
-        )
+        units_trend = go.Figure()
+        units_trend.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Units_Sold"], mode="lines+markers", name="Historical units", line={"color": "#168c83"}))
+        units_trend.add_trace(go.Scatter(x=forecast["Forecast_Month"], y=forecast["Predicted_Units"], mode="lines+markers", name="Forecast units", line={"color": "#168c83", "dash": "dot"}))
+        units_trend = style_chart(units_trend, height=260)
         st.plotly_chart(units_trend, use_container_width=True, theme=None)
     with download_col:
         st.subheader("Export")
@@ -286,6 +296,10 @@ def main() -> None:
     with st.expander("Monthly detail"):
         st.dataframe(monthly, use_container_width=True, hide_index=True)
         dataframe_download(monthly, "monthly_sales.csv")
+
+    with st.expander("Future sales prediction"):
+        st.dataframe(forecast, use_container_width=True, hide_index=True)
+        dataframe_download(forecast, "sales_forecast.csv")
 
 
 if __name__ == "__main__":

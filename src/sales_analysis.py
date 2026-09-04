@@ -6,8 +6,10 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
+from sklearn.linear_model import LinearRegression
 
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "sales_data.csv"
@@ -101,6 +103,52 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         "region_sales": region_sales,
         "monthly_sales": monthly_sales,
     }
+
+
+def engineer_monthly_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Build time-series features used by the sales forecasting model."""
+    if df.empty:
+        raise ValueError("Cannot engineer features from empty sales data.")
+
+    monthly = (
+        df.assign(Month_Period=df["Date"].dt.to_period("M"))
+        .groupby("Month_Period")[["Total_Sales", "Units_Sold"]]
+        .sum()
+        .sort_index()
+    )
+    month_index = pd.period_range(monthly.index.min(), monthly.index.max(), freq="M")
+    monthly = monthly.reindex(month_index, fill_value=0).rename_axis("Month_Period")
+    features = monthly.reset_index()
+    features["Month_Index"] = range(len(features))
+    features["Month_Number"] = features["Month_Period"].dt.month
+    radians = features["Month_Number"] * 2 * np.pi / 12
+    features["Month_Sin"] = np.sin(radians)
+    features["Month_Cos"] = np.cos(radians)
+    return features
+
+
+def forecast_sales(df: pd.DataFrame, periods: int = 3) -> pd.DataFrame:
+    """Forecast monthly revenue and units with trend and seasonal features."""
+    if periods < 1:
+        raise ValueError("Forecast periods must be at least 1.")
+
+    features = engineer_monthly_features(df)
+    feature_columns = ["Month_Index", "Month_Sin", "Month_Cos"]
+    model_inputs = features[feature_columns]
+    revenue_model = LinearRegression().fit(model_inputs, features["Total_Sales"])
+    units_model = LinearRegression().fit(model_inputs, features["Units_Sold"])
+
+    last_period = features["Month_Period"].iloc[-1]
+    future = pd.DataFrame({"Month_Period": pd.period_range(last_period + 1, periods=periods, freq="M")})
+    future["Month_Index"] = range(len(features), len(features) + periods)
+    future["Month_Number"] = future["Month_Period"].dt.month
+    radians = future["Month_Number"] * 2 * 3.141592653589793 / 12
+    future["Month_Sin"] = np.sin(radians)
+    future["Month_Cos"] = np.cos(radians)
+    future["Predicted_Revenue"] = revenue_model.predict(future[feature_columns]).clip(min=0)
+    future["Predicted_Units"] = units_model.predict(future[feature_columns]).clip(min=0)
+    future["Forecast_Month"] = future.pop("Month_Period").astype(str)
+    return future[["Forecast_Month", "Predicted_Revenue", "Predicted_Units"]]
 
 
 def export_summary(summary: dict) -> None:

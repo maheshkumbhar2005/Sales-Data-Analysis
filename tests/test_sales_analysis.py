@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.sales_analysis import load_sales_data, summarize_sales
+from src.sales_analysis import (
+    engineer_monthly_features,
+    forecast_sales,
+    load_sales_data,
+    summarize_sales,
+)
 
 
 def test_load_sales_data_parses_dates(tmp_path: Path):
@@ -95,6 +100,48 @@ def test_summarize_sales_includes_months_without_rows():
     assert list(monthly["Month"]) == ["2025-01", "2025-02", "2025-03"]
     assert list(monthly["Total_Sales"]) == [200, 0, 60]
     assert list(monthly["MoM_Growth_%"]) == [0, -100.0, 0]
+
+
+def test_forecast_sales_returns_future_non_negative_predictions():
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01", "2025-02-01", "2025-03-01"]),
+            "Product": ["Laptop", "Mouse", "Laptop"],
+            "Category": ["Electronics", "Accessories", "Electronics"],
+            "Region": ["North", "South", "North"],
+            "Units_Sold": [2, 4, 6],
+            "Unit_Price": [100, 20, 100],
+            "Total_Sales": [200, 80, 600],
+        }
+    )
+
+    features = engineer_monthly_features(df)
+    forecast = forecast_sales(df, periods=2)
+
+    assert {"Month_Index", "Month_Sin", "Month_Cos"}.issubset(features.columns)
+    assert list(forecast["Forecast_Month"]) == ["2025-04", "2025-05"]
+    assert (forecast[["Predicted_Revenue", "Predicted_Units"]] >= 0).all().all()
+
+
+def test_forecast_sales_rejects_invalid_horizon():
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01"]),
+            "Product": ["Laptop"],
+            "Category": ["Electronics"],
+            "Region": ["North"],
+            "Units_Sold": [2],
+            "Unit_Price": [100],
+            "Total_Sales": [200],
+        }
+    )
+
+    try:
+        forecast_sales(df, periods=0)
+    except ValueError as exc:
+        assert "at least 1" in str(exc)
+    else:
+        raise AssertionError("Expected invalid forecast horizon error")
 
 
 def test_summarize_sales_handles_zero_previous_month():
