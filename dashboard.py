@@ -105,6 +105,25 @@ st.markdown(
         border: 1px solid rgba(228, 87, 46, 0.3);
         color: #87331e;
     }
+
+    .dashboard-kicker {
+        color: var(--accent);
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: -0.5rem;
+    }
+
+    @media (max-width: 768px) {
+        [data-testid="stMetric"] {
+            padding: 0.8rem 0.7rem 0.65rem;
+        }
+
+        div[data-testid="stMetricValue"] {
+            font-size: 1.35rem;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -122,9 +141,19 @@ def dataframe_download(dataframe, filename: str) -> None:
     st.download_button("Download CSV", buffer.getvalue(), filename, "text/csv")
 
 
+def selected_date_range(date_range, fallback_date):
+    if isinstance(date_range, (tuple, list)):
+        if len(date_range) == 2:
+            return date_range
+        if date_range:
+            return date_range[0], date_range[0]
+    return fallback_date, fallback_date
+
+
 def main() -> None:
     df = get_sales_data()
 
+    st.markdown('<div class="dashboard-kicker">Commercial performance / 2025</div>', unsafe_allow_html=True)
     st.title("Sales intelligence")
     st.caption("A focused view of revenue, momentum, and what is selling.")
 
@@ -141,7 +170,7 @@ def main() -> None:
         selected_regions = st.multiselect("Regions", regions, default=regions)
         selected_categories = st.multiselect("Categories", categories, default=categories)
 
-    start_date, end_date = date_range if len(date_range) == 2 else (date_range[0], date_range[0])
+    start_date, end_date = selected_date_range(date_range, df["Date"].min().date())
     filtered_df = df[
         df["Date"].dt.date.between(start_date, end_date)
         & df["Region"].isin(selected_regions)
@@ -157,13 +186,18 @@ def main() -> None:
     latest_growth = monthly.iloc[-1]["MoM_Growth_%"] if len(monthly) > 1 else None
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Revenue", f"${filtered_summary['total_revenue']:,.0f}")
+    col1.metric("Revenue", f"${filtered_summary['total_revenue']:,.0f}", help="Total filtered sales revenue")
     col2.metric("Units sold", f"{filtered_summary['total_units']:,}")
     col3.metric("Average order", f"${filtered_summary['avg_order_value']:,.0f}")
     col4.metric("Latest MoM", f"{latest_growth:+.1f}%" if latest_growth is not None else "n/a")
 
-    st.subheader("Revenue pulse")
-    st.line_chart(monthly.set_index("Month")["Total_Sales"], color="#e4572e")
+    trend_col, download_col = st.columns([4, 1], gap="large")
+    with trend_col:
+        st.subheader("Revenue pulse")
+        st.line_chart(monthly.set_index("Month")["Total_Sales"], color="#e4572e")
+    with download_col:
+        st.subheader("Export")
+        dataframe_download(filtered_df, "filtered_sales_data.csv")
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
@@ -178,14 +212,28 @@ def main() -> None:
         st.bar_chart(region_chart, color="#e4572e")
         dataframe_download(filtered_summary["region_sales"], "region_sales.csv")
 
-    st.subheader("Top products by units")
     top_products = (
         filtered_df.groupby("Product", as_index=False)["Units_Sold"]
         .sum()
         .sort_values("Units_Sold", ascending=False)
         .head(10)
     )
-    st.dataframe(top_products, use_container_width=True, hide_index=True)
+    product_chart_col, product_table_col = st.columns([1.15, 1], gap="large")
+    with product_chart_col:
+        st.subheader("Top products by units")
+        st.bar_chart(
+            top_products.set_index("Product").sort_values("Units_Sold"),
+            horizontal=True,
+            color="#168c83",
+        )
+    with product_table_col:
+        st.subheader("Product detail")
+        st.dataframe(
+            top_products,
+            use_container_width=True,
+            hide_index=True,
+            column_config={"Units_Sold": st.column_config.NumberColumn("Units sold", format="%,d")},
+        )
 
     with st.expander("Monthly detail"):
         st.dataframe(monthly, use_container_width=True, hide_index=True)
