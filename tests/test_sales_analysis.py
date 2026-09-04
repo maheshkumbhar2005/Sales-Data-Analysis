@@ -28,6 +28,30 @@ def test_load_sales_data_parses_dates(tmp_path: Path):
     assert pd.api.types.is_datetime64_any_dtype(df["Date"])
 
 
+def test_load_sales_data_rejects_missing_columns(tmp_path: Path):
+    csv_file = tmp_path / "missing.csv"
+    csv_file.write_text("Date,Product\n2025-01-01,Laptop\n", encoding="utf-8")
+
+    try:
+        load_sales_data(csv_file)
+    except ValueError as exc:
+        assert "missing required columns" in str(exc)
+    else:
+        raise AssertionError("Expected missing-column validation error")
+
+
+def test_load_sales_data_rejects_empty_file(tmp_path: Path):
+    csv_file = tmp_path / "empty.csv"
+    csv_file.write_text("", encoding="utf-8")
+
+    try:
+        load_sales_data(csv_file)
+    except ValueError as exc:
+        assert "Unable to read sales CSV" in str(exc)
+    else:
+        raise AssertionError("Expected empty-file validation error")
+
+
 def test_summarize_sales_calculates_expected_values():
     df = pd.DataFrame(
         {
@@ -49,6 +73,28 @@ def test_summarize_sales_calculates_expected_values():
     assert summary["top_category"] == "Electronics"
     assert summary["top_region"] == "North"
     assert summary["top_product"] == "Laptop"
+    assert list(summary["top_products"]["Product"]) == ["Laptop", "Mouse"]
+    assert list(summary["monthly_sales"]["Units_Sold"]) == [5, 5]
+
+
+def test_summarize_sales_includes_months_without_rows():
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01", "2025-03-01"]),
+            "Product": ["Laptop", "Mouse"],
+            "Category": ["Electronics", "Accessories"],
+            "Region": ["North", "South"],
+            "Units_Sold": [2, 3],
+            "Unit_Price": [100, 20],
+            "Total_Sales": [200, 60],
+        }
+    )
+
+    monthly = summarize_sales(df)["monthly_sales"]
+
+    assert list(monthly["Month"]) == ["2025-01", "2025-02", "2025-03"]
+    assert list(monthly["Total_Sales"]) == [200, 0, 60]
+    assert list(monthly["MoM_Growth_%"]) == [0, -100.0, 0]
 
 
 def test_summarize_sales_handles_zero_previous_month():

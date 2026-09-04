@@ -12,6 +12,7 @@ dependencies = [
   "pandas>=2.0.0",
   "matplotlib>=3.7.0",
   "seaborn>=0.13.0",
+  "plotly>=5.22.0",
 ]
 
 [tool.pytest.ini_options]

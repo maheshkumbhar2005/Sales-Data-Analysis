@@ -12,15 +12,36 @@ import seaborn as sns
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "sales_data.csv"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
+REQUIRED_COLUMNS = {
+    "Date",
+    "Product",
+    "Category",
+    "Region",
+    "Units_Sold",
+    "Unit_Price",
+    "Total_Sales",
+}
 
 
 def load_sales_data(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except (OSError, UnicodeDecodeError, pd.errors.EmptyDataError, pd.errors.ParserError) as exc:
+        raise ValueError(f"Unable to read sales CSV: {path}") from exc
+
+    missing_columns = REQUIRED_COLUMNS.difference(df.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"Sales CSV is missing required columns: {missing}")
+
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["Units_Sold"] = pd.to_numeric(df["Units_Sold"], errors="coerce")
     df["Unit_Price"] = pd.to_numeric(df["Unit_Price"], errors="coerce")
     df["Total_Sales"] = pd.to_numeric(df["Total_Sales"], errors="coerce")
-    df = df.dropna(subset=["Date", "Category", "Region", "Units_Sold", "Total_Sales"]).copy()
+    df = df.dropna(subset=list(REQUIRED_COLUMNS)).copy()
+    if df.empty:
+        raise ValueError("Sales CSV contains no valid sales rows.")
+
     df["Month"] = df["Date"].dt.to_period("M").astype(str)
     return df
 
@@ -39,15 +60,25 @@ def summarize_sales(df: pd.DataFrame) -> dict:
     avg_price_per_unit = df["Unit_Price"].mean()
     top_category = df.groupby("Category")["Total_Sales"].sum().idxmax()
     top_region = df.groupby("Region")["Total_Sales"].sum().idxmax()
-    top_product = df.groupby("Product")["Units_Sold"].sum().idxmax()
+    product_sales = (
+        df.groupby("Product", as_index=False)["Units_Sold"]
+        .sum()
+        .sort_values("Units_Sold", ascending=False)
+    )
+    top_product = product_sales.iloc[0]["Product"]
 
     category_sales = df.groupby("Category", as_index=False)["Total_Sales"].sum().sort_values("Total_Sales", ascending=False)
     region_sales = df.groupby("Region", as_index=False)["Total_Sales"].sum().sort_values("Total_Sales", ascending=False)
+    month_index = pd.period_range(df["Date"].min(), df["Date"].max(), freq="M")
     monthly_sales = (
-        df.groupby("Month", as_index=False)["Total_Sales"]
+        df.assign(Month_Period=df["Date"].dt.to_period("M"))
+        .groupby("Month_Period")[["Total_Sales", "Units_Sold"]]
         .sum()
-        .sort_values("Month")
+        .reindex(month_index, fill_value=0)
+        .rename_axis("Month_Period")
+        .reset_index()
     )
+    monthly_sales["Month"] = monthly_sales.pop("Month_Period").astype(str)
     monthly_sales["Previous_Month"] = monthly_sales["Total_Sales"].shift(1)
     previous_month = monthly_sales["Previous_Month"]
     monthly_sales["MoM_Growth_%"] = (
@@ -65,6 +96,7 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         "top_category": top_category,
         "top_region": top_region,
         "top_product": top_product,
+        "top_products": product_sales.head(10),
         "category_sales": category_sales,
         "region_sales": region_sales,
         "monthly_sales": monthly_sales,

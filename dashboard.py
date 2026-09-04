@@ -3,6 +3,7 @@ from __future__ import annotations
 from io import StringIO
 
 import streamlit as st
+import plotly.express as px
 
 from src.sales_analysis import DATA_PATH, load_sales_data, summarize_sales
 
@@ -135,6 +136,11 @@ def get_sales_data():
     return load_sales_data(DATA_PATH)
 
 
+@st.cache_data
+def get_sales_summary(filtered_df):
+    return summarize_sales(filtered_df)
+
+
 def dataframe_download(dataframe, filename: str) -> None:
     buffer = StringIO()
     dataframe.to_csv(buffer, index=False)
@@ -150,8 +156,23 @@ def selected_date_range(date_range, fallback_date):
     return fallback_date, fallback_date
 
 
+def style_chart(figure, height: int = 340):
+    figure.update_layout(
+        template="simple_white",
+        height=height,
+        margin={"l": 12, "r": 12, "t": 16, "b": 12},
+        font={"color": "#17212b"},
+        hoverlabel={"bgcolor": "#17212b", "font_color": "#fffdf8"},
+    )
+    return figure
+
+
 def main() -> None:
-    df = get_sales_data()
+    try:
+        df = get_sales_data()
+    except ValueError as exc:
+        st.error(f"Sales data could not be loaded: {exc}")
+        st.stop()
 
     st.markdown('<div class="dashboard-kicker">Commercial performance / 2025</div>', unsafe_allow_html=True)
     st.title("Sales intelligence")
@@ -181,7 +202,7 @@ def main() -> None:
         st.warning("No sales match the selected filters.")
         return
 
-    filtered_summary = summarize_sales(filtered_df)
+    filtered_summary = get_sales_summary(filtered_df)
     monthly = filtered_summary["monthly_sales"]
     latest_growth = monthly.iloc[-1]["MoM_Growth_%"] if len(monthly) > 1 else None
 
@@ -193,8 +214,16 @@ def main() -> None:
 
     trend_col, download_col = st.columns([4, 1], gap="large")
     with trend_col:
-        st.subheader("Revenue pulse")
-        st.line_chart(monthly.set_index("Month")["Total_Sales"], color="#e4572e")
+        st.subheader("Performance pulse")
+        revenue_trend = style_chart(
+            px.line(monthly, x="Month", y="Total_Sales", markers=True, labels={"Total_Sales": "Revenue"})
+        )
+        st.plotly_chart(revenue_trend, use_container_width=True, theme=None)
+        units_trend = style_chart(
+            px.line(monthly, x="Month", y="Units_Sold", markers=True, labels={"Units_Sold": "Units sold"}),
+            height=260,
+        )
+        st.plotly_chart(units_trend, use_container_width=True, theme=None)
     with download_col:
         st.subheader("Export")
         dataframe_download(filtered_df, "filtered_sales_data.csv")
@@ -202,30 +231,49 @@ def main() -> None:
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
         st.subheader("Category mix")
-        category_chart = filtered_summary["category_sales"].set_index("Category")["Total_Sales"]
-        st.bar_chart(category_chart, color="#168c83")
+        category_chart = style_chart(
+            px.bar(
+                filtered_summary["category_sales"],
+                x="Category",
+                y="Total_Sales",
+                color="Category",
+                color_discrete_sequence=["#168c83", "#e4572e", "#e7a93b", "#4e79a7"],
+                labels={"Total_Sales": "Revenue"},
+            )
+        )
+        st.plotly_chart(category_chart, use_container_width=True, theme=None)
         dataframe_download(filtered_summary["category_sales"], "category_sales.csv")
 
     with chart_col2:
         st.subheader("Regional performance")
-        region_chart = filtered_summary["region_sales"].set_index("Region")["Total_Sales"]
-        st.bar_chart(region_chart, color="#e4572e")
+        region_chart = style_chart(
+            px.bar(
+                filtered_summary["region_sales"],
+                x="Region",
+                y="Total_Sales",
+                color="Region",
+                color_discrete_sequence=["#e4572e", "#168c83", "#e7a93b", "#4e79a7"],
+                labels={"Total_Sales": "Revenue"},
+            )
+        )
+        st.plotly_chart(region_chart, use_container_width=True, theme=None)
         dataframe_download(filtered_summary["region_sales"], "region_sales.csv")
 
-    top_products = (
-        filtered_df.groupby("Product", as_index=False)["Units_Sold"]
-        .sum()
-        .sort_values("Units_Sold", ascending=False)
-        .head(10)
-    )
+    top_products = filtered_summary["top_products"]
     product_chart_col, product_table_col = st.columns([1.15, 1], gap="large")
     with product_chart_col:
         st.subheader("Top products by units")
-        st.bar_chart(
-            top_products.set_index("Product").sort_values("Units_Sold"),
-            horizontal=True,
-            color="#168c83",
+        product_chart = style_chart(
+            px.bar(
+                top_products.sort_values("Units_Sold"),
+                x="Units_Sold",
+                y="Product",
+                orientation="h",
+                color_discrete_sequence=["#168c83"],
+                labels={"Units_Sold": "Units sold"},
+            )
         )
+        st.plotly_chart(product_chart, use_container_width=True, theme=None)
     with product_table_col:
         st.subheader("Product detail")
         st.dataframe(
