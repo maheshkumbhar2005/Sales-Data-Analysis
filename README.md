@@ -46,6 +46,14 @@ This project is a sales analytics dashboard built with Python, pandas, Plotly, a
    python main.py
    ```
 
+Run the tests with coverage:
+
+```bash
+python -m pytest
+```
+
+The pytest configuration reports line coverage for `src/` and highlights uncovered lines.
+
 ## Web dashboard
 
 A simple browser dashboard is also included using Streamlit.

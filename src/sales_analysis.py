@@ -25,6 +25,15 @@ REQUIRED_COLUMNS = {
     "Total_Sales",
 }
 DEFAULT_COST_RATIO = 0.70
+NON_NEGATIVE_COLUMNS = {
+    "Units_Sold",
+    "Unit_Price",
+    "Total_Sales",
+    "Cost_Price",
+    "Profit",
+    "Profit_Margin",
+    "Discount",
+}
 
 
 def load_sales_data(path: Path) -> pd.DataFrame:
@@ -45,9 +54,20 @@ def load_sales_data(path: Path) -> pd.DataFrame:
     for column in ("Cost_Price", "Profit", "Profit_Margin", "Discount"):
         if column in df:
             df[column] = pd.to_numeric(df[column], errors="coerce")
-    df = df.dropna(subset=list(REQUIRED_COLUMNS)).copy()
+    df = df.dropna(subset=list(REQUIRED_COLUMNS)).drop_duplicates().copy()
     if df.empty:
         raise ValueError("Sales CSV contains no valid sales rows.")
+
+    negative_columns = [
+        column
+        for column in NON_NEGATIVE_COLUMNS.intersection(df.columns)
+        if df[column].lt(0).any()
+    ]
+    if negative_columns:
+        raise ValueError(
+            "Sales CSV contains negative values in: "
+            + ", ".join(sorted(negative_columns))
+        )
 
     df["Month"] = df["Date"].dt.to_period("M").astype(str)
     return df

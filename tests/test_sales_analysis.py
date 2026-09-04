@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from src.sales_analysis import (
     DATA_PATH,
@@ -61,6 +62,53 @@ def test_load_sales_data_rejects_empty_file(tmp_path: Path):
         assert "Unable to read sales CSV" in str(exc)
     else:
         raise AssertionError("Expected empty-file validation error")
+
+
+def test_load_sales_data_rejects_invalid_dates(tmp_path: Path):
+    csv_file = tmp_path / "invalid_dates.csv"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
+        "not-a-date,Laptop,Electronics,North,2,100,200\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="no valid sales rows"):
+        load_sales_data(csv_file)
+
+
+def test_load_sales_data_rejects_invalid_numeric_values(tmp_path: Path):
+    csv_file = tmp_path / "invalid_numbers.csv"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
+        "2025-01-01,Laptop,Electronics,North,invalid,100,200\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="no valid sales rows"):
+        load_sales_data(csv_file)
+
+
+def test_load_sales_data_deduplicates_exact_rows(tmp_path: Path):
+    csv_file = tmp_path / "duplicates.csv"
+    row = "2025-01-01,Laptop,Electronics,North,2,100,200\n"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n" + row + row,
+        encoding="utf-8",
+    )
+
+    assert len(load_sales_data(csv_file)) == 1
+
+
+def test_load_sales_data_rejects_negative_values(tmp_path: Path):
+    csv_file = tmp_path / "negative.csv"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
+        "2025-01-01,Laptop,Electronics,North,-2,100,200\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="negative values"):
+        load_sales_data(csv_file)
 
 
 def test_source_data_includes_profit_analysis_columns():
@@ -124,6 +172,31 @@ def test_summarize_sales_includes_months_without_rows():
     assert list(monthly["Month"]) == ["2025-01", "2025-02", "2025-03"]
     assert list(monthly["Total_Sales"]) == [200, 0, 60]
     assert list(monthly["MoM_Growth_%"]) == [0, -100.0, 0]
+
+
+def test_summarize_sales_handles_zero_revenue():
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01"]),
+            "Product": ["Sample"],
+            "Category": ["Other"],
+            "Region": ["North"],
+            "Units_Sold": [0],
+            "Unit_Price": [0],
+            "Total_Sales": [0],
+        }
+    )
+
+    summary = summarize_sales(df)
+
+    assert summary["estimated_margin"] == 0
+    assert summary["category_sales"]["Contribution_%"].iloc[0] == 0
+    assert summary["region_sales"]["Contribution_%"].iloc[0] == 0
+
+
+def test_summarize_sales_rejects_empty_data():
+    with pytest.raises(ValueError, match="empty"):
+        summarize_sales(pd.DataFrame())
 
 
 def test_forecast_sales_returns_future_non_negative_predictions():
