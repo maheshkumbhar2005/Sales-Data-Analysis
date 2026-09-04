@@ -1,13 +1,15 @@
 # Sales Data Analysis
 
-This project is a basic but useful sales analytics starter built with Python, pandas, and seaborn. It reads a sales dataset, summarizes key business metrics, and generates charts and export files for quick analysis.
+This project is a sales analytics dashboard built with Python, pandas, Plotly, and Streamlit. It reads a sales dataset, summarizes key business metrics, and provides interactive charts, filters, and exports for quick analysis.
 
 ## Features
 
 - Loads a sample sales dataset from `data/sales_data.csv`
 - Calculates core KPIs such as total revenue, total units sold, average order value, and average unit price
 - Identifies top category, region, and product by sales volume
-- Builds a sales dashboard with multiple charts
+- Builds an interactive Streamlit dashboard with Plotly charts
+- Filters results by date range, region, and category
+- Downloads filtered sales data and summary tables
 - Exports summary tables and JSON metrics to the `output/` folder
 - Keeps the existing MIT license intact
 
@@ -16,7 +18,8 @@ This project is a basic but useful sales analytics starter built with Python, pa
 - `data/` – sample dataset
 - `src/` – analysis logic
 - `output/` – generated charts and summaries
-- `main.py` – entry point
+- `app.py` – Streamlit dashboard entry point
+- `src/sales_analysis.py` – data loading, validation, and analysis logic
 - `requirements.txt` – Python dependencies
 - `LICENSE` – MIT license retained from the repository
 
@@ -31,7 +34,7 @@ This project is a basic but useful sales analytics starter built with Python, pa
    ```bash
    pip install -r requirements.txt
    ```
-3. Run the analysis:
+3. Generate the reports and static output files:
    ```bash
    python main.py
    ```
@@ -43,10 +46,10 @@ A simple browser dashboard is also included using Streamlit.
 Run it with:
 
 ```bash
-streamlit run dashboard.py
+streamlit run app.py
 ```
 
-This dashboard lets you filter by region and category, view sales KPIs, and inspect trend charts without writing Python code in the terminal.
+The dashboard lets you filter by date range, region, and category, view revenue and unit trends, inspect category, region, and product performance, and download filtered data.
 
 ## Output files
 
