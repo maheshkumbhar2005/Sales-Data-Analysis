@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import IsolationForest
 
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "sales_data.csv"
@@ -23,6 +24,7 @@ REQUIRED_COLUMNS = {
     "Unit_Price",
     "Total_Sales",
 }
+DEFAULT_COST_RATIO = 0.70
 
 
 def load_sales_data(path: Path) -> pd.DataFrame:
@@ -48,11 +50,107 @@ def load_sales_data(path: Path) -> pd.DataFrame:
     return df
 
 
+def add_profit_metrics(df: pd.DataFrame, cost_ratio: float = DEFAULT_COST_RATIO) -> pd.DataFrame:
+    """Add estimated cost, profit, and margin when no cost column is supplied."""
+    if not 0 <= cost_ratio <= 1:
+        raise ValueError("Cost ratio must be between 0 and 1.")
+
+    enriched = df.copy()
+    enriched["Estimated_Cost"] = enriched["Total_Sales"] * cost_ratio
+    enriched["Estimated_Profit"] = enriched["Total_Sales"] - enriched["Estimated_Cost"]
+    enriched["Estimated_Margin_%"] = (
+        enriched["Estimated_Profit"].div(enriched["Total_Sales"])
+        .mul(100)
+        .where(enriched["Total_Sales"].ne(0), 0.0)
+    )
+    return enriched
+
+
+def filter_sales_data(
+    df: pd.DataFrame,
+    start_date,
+    end_date,
+    regions: list[str] | None = None,
+    categories: list[str] | None = None,
+) -> pd.DataFrame:
+    """Apply dashboard filters in one place."""
+    filtered = df[
+        df["Date"].between(pd.Timestamp(start_date), pd.Timestamp(end_date))
+    ]
+    if regions is not None:
+        filtered = filtered[filtered["Region"].isin(regions)]
+    if categories is not None:
+        filtered = filtered[filtered["Category"].isin(categories)]
+    return filtered.copy()
+
+
+def compare_periods(df: pd.DataFrame, start_date, end_date) -> dict:
+    """Compare a selected period with the immediately preceding equal period."""
+    start = pd.Timestamp(start_date)
+    end = pd.Timestamp(end_date)
+    duration = end - start + pd.Timedelta(days=1)
+    previous_end = start - pd.Timedelta(days=1)
+    previous_start = previous_end - duration + pd.Timedelta(days=1)
+    current = df[df["Date"].between(start, end)]
+    previous = df[df["Date"].between(previous_start, previous_end)]
+
+    def metrics(period: pd.DataFrame) -> dict:
+        enriched = add_profit_metrics(period)
+        revenue = enriched["Total_Sales"].sum()
+        profit = enriched["Estimated_Profit"].sum()
+        return {
+            "revenue": revenue,
+            "units": enriched["Units_Sold"].sum(),
+            "profit": profit,
+            "margin": profit / revenue * 100 if revenue else 0.0,
+        }
+
+    current_metrics = metrics(current)
+    previous_metrics = metrics(previous)
+    changes = {
+        key: current_metrics[key] - previous_metrics[key]
+        for key in current_metrics
+    }
+    changes["revenue_pct"] = (
+        changes["revenue"] / previous_metrics["revenue"] * 100
+        if previous_metrics["revenue"]
+        else 0.0
+    )
+    return {
+        "current": current_metrics,
+        "previous": previous_metrics,
+        "changes": changes,
+        "previous_start": previous_start,
+        "previous_end": previous_end,
+    }
+
+
+def detect_sales_anomalies(df: pd.DataFrame) -> pd.DataFrame:
+    """Flag unusual monthly revenue and unit combinations."""
+    return detect_monthly_anomalies(engineer_monthly_features(df))
+
+
+def detect_monthly_anomalies(monthly_sales: pd.DataFrame) -> pd.DataFrame:
+    result = monthly_sales[["Total_Sales", "Units_Sold"]].copy()
+    if "Month_Period" in monthly_sales:
+        result["Month"] = monthly_sales["Month_Period"].astype(str)
+    else:
+        result["Month"] = monthly_sales["Month"]
+    result["Anomaly_Score"] = 0.0
+    result["Is_Anomaly"] = False
+    if len(result) >= 3:
+        model = IsolationForest(contamination="auto", random_state=42)
+        model.fit(result[["Total_Sales", "Units_Sold"]])
+        result["Anomaly_Score"] = model.decision_function(result[["Total_Sales", "Units_Sold"]])
+        result["Is_Anomaly"] = model.predict(result[["Total_Sales", "Units_Sold"]]) == -1
+    return result[["Month", "Total_Sales", "Units_Sold", "Anomaly_Score", "Is_Anomaly"]]
+
+
 def summarize_sales(df: pd.DataFrame) -> dict:
     if df.empty:
         raise ValueError("Sales data is empty after cleaning.")
 
-    df = df.copy()
+    df = add_profit_metrics(df)
     if "Month" not in df.columns:
         df["Month"] = df["Date"].dt.to_period("M").astype(str)
 
@@ -69,12 +167,14 @@ def summarize_sales(df: pd.DataFrame) -> dict:
     )
     top_product = product_sales.iloc[0]["Product"]
 
-    category_sales = df.groupby("Category", as_index=False)["Total_Sales"].sum().sort_values("Total_Sales", ascending=False)
-    region_sales = df.groupby("Region", as_index=False)["Total_Sales"].sum().sort_values("Total_Sales", ascending=False)
+    category_sales = df.groupby("Category", as_index=False)[["Total_Sales", "Estimated_Profit"]].sum().sort_values("Total_Sales", ascending=False)
+    category_sales["Contribution_%"] = category_sales["Total_Sales"].div(total_revenue).mul(100) if total_revenue else 0.0
+    region_sales = df.groupby("Region", as_index=False)[["Total_Sales", "Estimated_Profit"]].sum().sort_values("Total_Sales", ascending=False)
+    region_sales["Contribution_%"] = region_sales["Total_Sales"].div(total_revenue).mul(100) if total_revenue else 0.0
     month_index = pd.period_range(df["Date"].min(), df["Date"].max(), freq="M")
     monthly_sales = (
         df.assign(Month_Period=df["Date"].dt.to_period("M"))
-        .groupby("Month_Period")[["Total_Sales", "Units_Sold"]]
+        .groupby("Month_Period")[["Total_Sales", "Units_Sold", "Estimated_Profit"]]
         .sum()
         .reindex(month_index, fill_value=0)
         .rename_axis("Month_Period")
@@ -89,12 +189,21 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         .mul(100)
         .where(previous_month.notna() & previous_month.ne(0), 0.0)
     )
+    anomalies = detect_monthly_anomalies(monthly_sales)
+    monthly_sales = monthly_sales.merge(
+        anomalies[["Month", "Anomaly_Score", "Is_Anomaly"]], on="Month"
+    )
+    best_month = monthly_sales.loc[monthly_sales["Total_Sales"].idxmax(), "Month"]
+    worst_month = monthly_sales.loc[monthly_sales["Total_Sales"].idxmin(), "Month"]
+    total_profit = df["Estimated_Profit"].sum()
 
     return {
         "total_revenue": total_revenue,
         "total_units": total_units,
         "avg_order_value": avg_order_value,
         "avg_price_per_unit": avg_price_per_unit,
+        "total_profit": total_profit,
+        "estimated_margin": total_profit / total_revenue * 100 if total_revenue else 0.0,
         "top_category": top_category,
         "top_region": top_region,
         "top_product": top_product,
@@ -102,6 +211,9 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         "category_sales": category_sales,
         "region_sales": region_sales,
         "monthly_sales": monthly_sales,
+        "best_month": best_month,
+        "worst_month": worst_month,
+        "anomalies": anomalies[anomalies["Is_Anomaly"]].copy(),
     }
 
 
@@ -162,9 +274,13 @@ def export_summary(summary: dict) -> None:
         "total_units": int(summary["total_units"]),
         "avg_order_value": float(summary["avg_order_value"]),
         "avg_price_per_unit": float(summary["avg_price_per_unit"]),
+        "total_profit": float(summary["total_profit"]),
+        "estimated_margin": float(summary["estimated_margin"]),
         "top_category": summary["top_category"],
         "top_region": summary["top_region"],
         "top_product": summary["top_product"],
+        "best_month": summary["best_month"],
+        "worst_month": summary["worst_month"],
     }
     (OUTPUT_DIR / "sales_summary.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 

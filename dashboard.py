@@ -6,7 +6,14 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-from src.sales_analysis import DATA_PATH, forecast_sales, load_sales_data, summarize_sales
+from src.sales_analysis import (
+    DATA_PATH,
+    compare_periods,
+    forecast_sales,
+    load_sales_data,
+    filter_sales_data,
+    summarize_sales,
+)
 
 
 st.set_page_config(page_title="Sales Intelligence", page_icon="📈", layout="wide")
@@ -147,6 +154,11 @@ def get_sales_forecast(filtered_df, periods: int):
     return forecast_sales(filtered_df, periods)
 
 
+@st.cache_data
+def get_period_comparison(filtered_df, start_date, end_date):
+    return compare_periods(filtered_df, start_date, end_date)
+
+
 def dataframe_download(dataframe, filename: str) -> None:
     buffer = StringIO()
     dataframe.to_csv(buffer, index=False)
@@ -199,11 +211,14 @@ def main() -> None:
         forecast_periods = st.slider("Forecast months", min_value=1, max_value=12, value=3)
 
     start_date, end_date = selected_date_range(date_range, df["Date"].min().date())
-    filtered_df = df[
-        df["Date"].dt.date.between(start_date, end_date)
-        & df["Region"].isin(selected_regions)
-        & df["Category"].isin(selected_categories)
-    ]
+    filtered_df = filter_sales_data(df, start_date, end_date, selected_regions, selected_categories)
+    comparison_base = filter_sales_data(
+        df,
+        df["Date"].min(),
+        df["Date"].max(),
+        selected_regions,
+        selected_categories,
+    )
 
     if filtered_df.empty:
         st.warning("No sales match the selected filters.")
@@ -212,13 +227,16 @@ def main() -> None:
     filtered_summary = get_sales_summary(filtered_df)
     monthly = filtered_summary["monthly_sales"]
     forecast = get_sales_forecast(filtered_df, forecast_periods)
+    comparison = get_period_comparison(comparison_base, start_date, end_date)
     latest_growth = monthly.iloc[-1]["MoM_Growth_%"] if len(monthly) > 1 else None
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Revenue", f"${filtered_summary['total_revenue']:,.0f}", help="Total filtered sales revenue")
-    col2.metric("Units sold", f"{filtered_summary['total_units']:,}")
-    col3.metric("Average order", f"${filtered_summary['avg_order_value']:,.0f}")
-    col4.metric("Latest MoM", f"{latest_growth:+.1f}%" if latest_growth is not None else "n/a")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1.metric("Revenue", f"${filtered_summary['total_revenue']:,.0f}", f"{comparison['changes']['revenue_pct']:+.1f}% vs prior")
+    col2.metric("Units sold", f"{filtered_summary['total_units']:,}", f"{comparison['changes']['units']:+,.0f} vs prior")
+    col3.metric("Estimated profit", f"${filtered_summary['total_profit']:,.0f}", f"{comparison['changes']['profit']:+,.0f} vs prior")
+    col4.metric("Margin", f"{filtered_summary['estimated_margin']:.1f}%", f"{comparison['changes']['margin']:+.1f} pts")
+    col5.metric("Best month", filtered_summary["best_month"])
+    col6.metric("Worst month", filtered_summary["worst_month"])
 
     trend_col, download_col = st.columns([4, 1], gap="large")
     with trend_col:
@@ -240,34 +258,68 @@ def main() -> None:
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
-        st.subheader("Category mix")
+        st.subheader("Category contribution")
         category_chart = style_chart(
             px.bar(
                 filtered_summary["category_sales"],
                 x="Category",
-                y="Total_Sales",
+                y="Contribution_%",
                 color="Category",
                 color_discrete_sequence=["#168c83", "#e4572e", "#e7a93b", "#4e79a7"],
-                labels={"Total_Sales": "Revenue"},
+                labels={"Contribution_%": "Share of revenue"},
+                text_auto=".1f",
             )
         )
         st.plotly_chart(category_chart, use_container_width=True, theme=None)
         dataframe_download(filtered_summary["category_sales"], "category_sales.csv")
 
     with chart_col2:
-        st.subheader("Regional performance")
+        st.subheader("Region contribution")
         region_chart = style_chart(
             px.bar(
                 filtered_summary["region_sales"],
                 x="Region",
-                y="Total_Sales",
+                y="Contribution_%",
                 color="Region",
                 color_discrete_sequence=["#e4572e", "#168c83", "#e7a93b", "#4e79a7"],
-                labels={"Total_Sales": "Revenue"},
+                labels={"Contribution_%": "Share of revenue"},
+                text_auto=".1f",
             )
         )
         st.plotly_chart(region_chart, use_container_width=True, theme=None)
         dataframe_download(filtered_summary["region_sales"], "region_sales.csv")
+
+    profit_col, anomaly_col = st.columns(2, gap="large")
+    with profit_col:
+        st.subheader("Profit and margin")
+        profit_chart = style_chart(
+            px.bar(
+                monthly,
+                x="Month",
+                y="Estimated_Profit",
+                color_discrete_sequence=["#e7a93b"],
+                labels={"Estimated_Profit": "Estimated profit"},
+            )
+        )
+        st.plotly_chart(profit_chart, use_container_width=True, theme=None)
+    with anomaly_col:
+        st.subheader("Anomaly watch")
+        anomaly_chart = style_chart(
+            px.scatter(
+                monthly,
+                x="Month",
+                y="Total_Sales",
+                color="Is_Anomaly",
+                size="Units_Sold",
+                color_discrete_map={False: "#168c83", True: "#e4572e"},
+                labels={"Total_Sales": "Revenue", "Is_Anomaly": "Unusual month"},
+            )
+        )
+        st.plotly_chart(anomaly_chart, use_container_width=True, theme=None)
+        if filtered_summary["anomalies"].empty:
+            st.caption("No unusual monthly sales patterns detected.")
+        else:
+            st.dataframe(filtered_summary["anomalies"], use_container_width=True, hide_index=True)
 
     top_products = filtered_summary["top_products"]
     product_chart_col, product_table_col = st.columns([1.15, 1], gap="large")

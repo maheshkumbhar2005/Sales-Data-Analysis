@@ -3,7 +3,11 @@ from pathlib import Path
 import pandas as pd
 
 from src.sales_analysis import (
+    add_profit_metrics,
+    compare_periods,
+    detect_sales_anomalies,
     engineer_monthly_features,
+    filter_sales_data,
     forecast_sales,
     load_sales_data,
     summarize_sales,
@@ -80,6 +84,11 @@ def test_summarize_sales_calculates_expected_values():
     assert summary["top_product"] == "Laptop"
     assert list(summary["top_products"]["Product"]) == ["Laptop", "Mouse"]
     assert list(summary["monthly_sales"]["Units_Sold"]) == [5, 5]
+    assert summary["total_profit"] == 180
+    assert summary["estimated_margin"] == 30
+    assert summary["best_month"] == "2025-01"
+    assert summary["worst_month"] == "2025-02"
+    assert summary["category_sales"]["Contribution_%"].sum() == 100
 
 
 def test_summarize_sales_includes_months_without_rows():
@@ -142,6 +151,45 @@ def test_forecast_sales_rejects_invalid_horizon():
         assert "at least 1" in str(exc)
     else:
         raise AssertionError("Expected invalid forecast horizon error")
+
+
+def test_period_comparison_and_anomaly_outputs():
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03", "2025-02-01"]),
+            "Product": ["Laptop", "Mouse", "Laptop", "Laptop"],
+            "Category": ["Electronics", "Accessories", "Electronics", "Electronics"],
+            "Region": ["North", "North", "North", "North"],
+            "Units_Sold": [2, 5, 10, 10],
+            "Unit_Price": [100, 20, 100, 100],
+            "Total_Sales": [200, 100, 1000, 1000],
+        }
+    )
+
+    selected = filter_sales_data(df, "2025-02-01", "2025-02-28", ["North"], ["Electronics"])
+    comparison = compare_periods(df, "2025-01-02", "2025-01-03")
+    anomalies = detect_sales_anomalies(df)
+
+    assert len(selected) == 1
+    assert comparison["current"]["revenue"] == 1100
+    assert comparison["previous"]["revenue"] == 200
+    assert comparison["changes"]["revenue_pct"] == 450
+    assert {"Anomaly_Score", "Is_Anomaly"}.issubset(anomalies.columns)
+
+
+def test_add_profit_metrics_validates_cost_ratio():
+    df = pd.DataFrame({"Total_Sales": [100]})
+
+    enriched = add_profit_metrics(df, cost_ratio=0.6)
+
+    assert enriched["Estimated_Profit"].iloc[0] == 40
+    assert enriched["Estimated_Margin_%"].iloc[0] == 40
+    try:
+        add_profit_metrics(df, cost_ratio=1.2)
+    except ValueError as exc:
+        assert "between 0 and 1" in str(exc)
+    else:
+        raise AssertionError("Expected invalid cost-ratio error")
 
 
 def test_summarize_sales_handles_zero_previous_month():

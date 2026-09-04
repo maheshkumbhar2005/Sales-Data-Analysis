@@ -11,6 +11,9 @@ This project is a sales analytics dashboard built with Python, pandas, Plotly, a
 - Filters results by date range, region, and category
 - Downloads filtered sales data and summary tables
 - Forecasts future monthly revenue and units with an ML model
+- Compares selected KPIs with the immediately preceding equal period
+- Flags unusual monthly revenue and unit patterns
+- Shows estimated profit and margin using a documented cost assumption
 - Exports summary tables and JSON metrics to the `output/` folder
 - Keeps the existing MIT license intact
 
@@ -69,6 +72,8 @@ Interactive Dashboard
 ```
 
 The model uses monthly trend and seasonal features to forecast revenue and units. Forecast months can be selected from the dashboard sidebar. Predictions are intended as a transparent baseline for this small sample dataset and should be retrained with more history before production use.
+
+Because the sample CSV does not include product costs, profit is estimated with a 70% cost ratio, resulting in a 30% estimated margin. Replace `DEFAULT_COST_RATIO` or add a real cost column before using profitability metrics for operational decisions. Anomaly detection runs on monthly revenue and units with an Isolation Forest model.
 
 ## Output files
 
