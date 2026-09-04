@@ -173,7 +173,7 @@ def summarize_sales(df: pd.DataFrame) -> dict:
     top_category = df.groupby("Category")["Total_Sales"].sum().idxmax()
     top_region = df.groupby("Region")["Total_Sales"].sum().idxmax()
     product_sales = (
-        df.groupby("Product", as_index=False)["Units_Sold"]
+        df.groupby("Product", as_index=False)[["Units_Sold", "Total_Sales", "Estimated_Profit"]]
         .sum()
         .sort_values("Units_Sold", ascending=False)
     )
@@ -219,6 +219,7 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         "top_category": top_category,
         "top_region": top_region,
         "top_product": top_product,
+        "product_sales": product_sales,
         "top_products": product_sales.head(10),
         "category_sales": category_sales,
         "region_sales": region_sales,

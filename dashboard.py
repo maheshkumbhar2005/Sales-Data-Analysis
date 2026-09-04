@@ -5,6 +5,7 @@ from io import StringIO
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from src.sales_analysis import (
     DATA_PATH,
@@ -257,11 +258,16 @@ def main() -> None:
                 st.dataframe(filtered_summary["anomalies"], use_container_width=True, hide_index=True)
 
     with trends_tab:
-        st.subheader("Revenue and units over time")
-        revenue_trend = style_chart(px.line(monthly, x="Month", y="Total_Sales", markers=True, labels={"Total_Sales": "Revenue"}))
-        st.plotly_chart(revenue_trend, use_container_width=True, theme=None)
-        units_trend = style_chart(px.line(monthly, x="Month", y="Units_Sold", markers=True, labels={"Units_Sold": "Units sold"}), height=280)
-        st.plotly_chart(units_trend, use_container_width=True, theme=None)
+        st.subheader("Revenue vs units")
+        revenue_units = make_subplots(specs=[[{"secondary_y": True}]])
+        revenue_units.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Total_Sales"], mode="lines+markers", name="Revenue", line={"color": "#e4572e"}), secondary_y=False)
+        revenue_units.add_trace(go.Scatter(x=monthly["Month"], y=monthly["Units_Sold"], mode="lines+markers", name="Units sold", line={"color": "#168c83"}), secondary_y=True)
+        revenue_units.update_yaxes(title_text="Revenue", secondary_y=False)
+        revenue_units.update_yaxes(title_text="Units sold", secondary_y=True)
+        st.plotly_chart(style_chart(revenue_units, height=420), use_container_width=True, theme=None)
+        st.subheader("Monthly growth")
+        growth_chart = style_chart(px.bar(monthly, x="Month", y="MoM_Growth_%", color="MoM_Growth_%", color_continuous_scale=["#e4572e", "#e7a93b", "#168c83"], labels={"MoM_Growth_%": "Growth (%)"}), height=300)
+        st.plotly_chart(growth_chart, use_container_width=True, theme=None)
         profit_trend = style_chart(px.bar(monthly, x="Month", y="Estimated_Profit", color_discrete_sequence=["#e7a93b"], labels={"Estimated_Profit": "Estimated profit"}), height=280)
         st.plotly_chart(profit_trend, use_container_width=True, theme=None)
 
@@ -276,17 +282,20 @@ def main() -> None:
             st.subheader("Product detail")
             st.dataframe(top_products, use_container_width=True, hide_index=True, column_config={"Units_Sold": st.column_config.NumberColumn("Units sold", format="%,d")})
             dataframe_download(top_products, "top_products.csv")
+        st.subheader("Profit vs revenue")
+        product_scatter = style_chart(px.scatter(filtered_summary["product_sales"], x="Total_Sales", y="Estimated_Profit", size="Units_Sold", color="Product", hover_name="Product", labels={"Total_Sales": "Revenue", "Estimated_Profit": "Estimated profit"}), height=420)
+        st.plotly_chart(product_scatter, use_container_width=True, theme=None)
 
     with geography_tab:
         category_col, region_col = st.columns(2)
         with category_col:
             st.subheader("Category contribution")
-            category_chart = style_chart(px.bar(filtered_summary["category_sales"], x="Category", y="Contribution_%", color="Category", color_discrete_sequence=["#168c83", "#e4572e", "#e7a93b", "#4e79a7"], labels={"Contribution_%": "Share of revenue"}, text_auto=".1f"))
+            category_chart = style_chart(px.pie(filtered_summary["category_sales"], names="Category", values="Contribution_%", hole=0.55, color_discrete_sequence=["#168c83", "#e4572e", "#e7a93b", "#4e79a7"], labels={"Contribution_%": "Share of revenue"}))
             st.plotly_chart(category_chart, use_container_width=True, theme=None)
             dataframe_download(filtered_summary["category_sales"], "category_sales.csv")
         with region_col:
             st.subheader("Region contribution")
-            region_chart = style_chart(px.bar(filtered_summary["region_sales"], x="Region", y="Contribution_%", color="Region", color_discrete_sequence=["#e4572e", "#168c83", "#e7a93b", "#4e79a7"], labels={"Contribution_%": "Share of revenue"}, text_auto=".1f"))
+            region_chart = style_chart(px.bar(filtered_summary["region_sales"], x="Region", y=["Total_Sales", "Estimated_Profit"], barmode="group", color_discrete_sequence=["#e4572e", "#168c83"], labels={"value": "Amount", "variable": "Metric"}))
             st.plotly_chart(region_chart, use_container_width=True, theme=None)
             dataframe_download(filtered_summary["region_sales"], "region_sales.csv")
 

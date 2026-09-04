@@ -9,6 +9,7 @@ This project is a sales analytics dashboard built with Python, pandas, Plotly, a
 - Identifies top category, region, and product by sales volume
 - Builds an interactive Streamlit dashboard with Plotly charts
 - Organizes the dashboard into Overview, Trends, Products, Geography, Forecast, and Data tabs
+- Includes interactive donut, comparison, trend, growth, product, and scatter charts
 - Filters results by date range, region, and category
 - Downloads filtered sales data and summary tables
 - Forecasts future monthly revenue and units with an ML model
