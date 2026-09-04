@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.sales_analysis import (
+    DATA_PATH,
     add_profit_metrics,
     compare_periods,
     detect_sales_anomalies,
@@ -59,6 +60,14 @@ def test_load_sales_data_rejects_empty_file(tmp_path: Path):
         assert "Unable to read sales CSV" in str(exc)
     else:
         raise AssertionError("Expected empty-file validation error")
+
+
+def test_source_data_includes_profit_analysis_columns():
+    df = load_sales_data(DATA_PATH)
+
+    assert {"Cost_Price", "Profit", "Profit_Margin", "Discount"}.issubset(df.columns)
+    assert df.loc[0, "Profit"] == df.loc[0, "Total_Sales"] - (df.loc[0, "Cost_Price"] * df.loc[0, "Units_Sold"])
+    assert df.loc[0, "Profit_Margin"] == 30
 
 
 def test_summarize_sales_calculates_expected_values():
@@ -178,7 +187,7 @@ def test_period_comparison_and_anomaly_outputs():
 
 
 def test_add_profit_metrics_validates_cost_ratio():
-    df = pd.DataFrame({"Total_Sales": [100]})
+    df = pd.DataFrame({"Total_Sales": [100], "Unit_Price": [100], "Units_Sold": [1]})
 
     enriched = add_profit_metrics(df, cost_ratio=0.6)
 

@@ -42,6 +42,9 @@ def load_sales_data(path: Path) -> pd.DataFrame:
     df["Units_Sold"] = pd.to_numeric(df["Units_Sold"], errors="coerce")
     df["Unit_Price"] = pd.to_numeric(df["Unit_Price"], errors="coerce")
     df["Total_Sales"] = pd.to_numeric(df["Total_Sales"], errors="coerce")
+    for column in ("Cost_Price", "Profit", "Profit_Margin", "Discount"):
+        if column in df:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
     df = df.dropna(subset=list(REQUIRED_COLUMNS)).copy()
     if df.empty:
         raise ValueError("Sales CSV contains no valid sales rows.")
@@ -51,18 +54,27 @@ def load_sales_data(path: Path) -> pd.DataFrame:
 
 
 def add_profit_metrics(df: pd.DataFrame, cost_ratio: float = DEFAULT_COST_RATIO) -> pd.DataFrame:
-    """Add estimated cost, profit, and margin when no cost column is supplied."""
+    """Add canonical cost, profit, margin, and discount metrics."""
     if not 0 <= cost_ratio <= 1:
         raise ValueError("Cost ratio must be between 0 and 1.")
 
     enriched = df.copy()
-    enriched["Estimated_Cost"] = enriched["Total_Sales"] * cost_ratio
-    enriched["Estimated_Profit"] = enriched["Total_Sales"] - enriched["Estimated_Cost"]
-    enriched["Estimated_Margin_%"] = (
-        enriched["Estimated_Profit"].div(enriched["Total_Sales"])
+    if "Cost_Price" in enriched:
+        enriched["Cost_Price"] = enriched["Cost_Price"].fillna(enriched["Unit_Price"] * cost_ratio)
+        enriched["Profit"] = enriched["Total_Sales"] - enriched["Cost_Price"] * enriched["Units_Sold"]
+    else:
+        enriched["Cost_Price"] = enriched["Unit_Price"] * cost_ratio
+        enriched["Profit"] = enriched["Total_Sales"] - enriched["Cost_Price"] * enriched["Units_Sold"]
+    if "Discount" not in enriched:
+        enriched["Discount"] = 0.0
+    enriched["Profit_Margin"] = (
+        enriched["Profit"].div(enriched["Total_Sales"])
         .mul(100)
         .where(enriched["Total_Sales"].ne(0), 0.0)
     )
+    enriched["Estimated_Cost"] = enriched["Cost_Price"] * enriched["Units_Sold"]
+    enriched["Estimated_Profit"] = enriched["Profit"]
+    enriched["Estimated_Margin_%"] = enriched["Profit_Margin"]
     return enriched
 
 

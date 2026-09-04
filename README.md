@@ -75,6 +75,10 @@ The model uses monthly trend and seasonal features to forecast revenue and units
 
 Because the sample CSV does not include product costs, profit is estimated with a 70% cost ratio, resulting in a 30% estimated margin. Replace `DEFAULT_COST_RATIO` or add a real cost column before using profitability metrics for operational decisions. Anomaly detection runs on monthly revenue and units with an Isolation Forest model.
 
+## Sales data fields
+
+The source CSV includes `Date`, `Product`, `Category`, `Region`, `Units_Sold`, `Unit_Price`, `Total_Sales`, `Cost_Price`, `Profit`, `Profit_Margin`, and `Discount`. `Cost_Price` is a per-unit value, `Discount` is a percentage, and `Profit` is calculated as `Total_Sales - (Cost_Price * Units_Sold)`. The sample uses a 70% cost baseline and 0% discount because the original source data did not provide those business fields.
+
 ## Output files
 
 After running the project, the following files are generated in `output/`:
