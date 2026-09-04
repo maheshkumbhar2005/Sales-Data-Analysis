@@ -49,3 +49,21 @@ def test_summarize_sales_calculates_expected_values():
     assert summary["top_category"] == "Electronics"
     assert summary["top_region"] == "North"
     assert summary["top_product"] == "Laptop"
+
+
+def test_summarize_sales_handles_zero_previous_month():
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-01", "2025-02-01"]),
+            "Product": ["Laptop", "Laptop"],
+            "Category": ["Electronics", "Electronics"],
+            "Region": ["North", "North"],
+            "Units_Sold": [0, 2],
+            "Unit_Price": [100, 100],
+            "Total_Sales": [0, 200],
+        }
+    )
+
+    summary = summarize_sales(df)
+
+    assert summary["monthly_sales"]["MoM_Growth_%"].tolist() == [0, 0]

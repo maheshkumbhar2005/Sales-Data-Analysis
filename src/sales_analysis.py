@@ -26,6 +26,9 @@ def load_sales_data(path: Path) -> pd.DataFrame:
 
 
 def summarize_sales(df: pd.DataFrame) -> dict:
+    if df.empty:
+        raise ValueError("Sales data is empty after cleaning.")
+
     df = df.copy()
     if "Month" not in df.columns:
         df["Month"] = df["Date"].dt.to_period("M").astype(str)
@@ -46,7 +49,13 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         .sort_values("Month")
     )
     monthly_sales["Previous_Month"] = monthly_sales["Total_Sales"].shift(1)
-    monthly_sales["MoM_Growth_%"] = ((monthly_sales["Total_Sales"] - monthly_sales["Previous_Month"]) / monthly_sales["Previous_Month"] * 100).fillna(0)
+    previous_month = monthly_sales["Previous_Month"]
+    monthly_sales["MoM_Growth_%"] = (
+        monthly_sales["Total_Sales"].subtract(previous_month)
+        .div(previous_month)
+        .mul(100)
+        .where(previous_month.notna() & previous_month.ne(0), 0.0)
+    )
 
     return {
         "total_revenue": total_revenue,
