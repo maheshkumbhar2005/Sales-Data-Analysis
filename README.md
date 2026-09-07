@@ -19,6 +19,7 @@ This project is a sales analytics dashboard built with Python, pandas, and a Nod
 - Shows estimated profit and margin using a documented cost assumption
 - Exports summary tables and JSON metrics to the `output/` folder
 - Exports a Power BI-ready transaction table with date and profit dimensions
+- Builds a SQLite SQL layer with indexed sales data and analytics queries
 - Keeps the existing MIT license intact
 
 ## Project structure
@@ -27,6 +28,7 @@ This project is a sales analytics dashboard built with Python, pandas, and a Nod
 - `src/` – analysis logic
 - `output/` – generated charts and summaries
 - `powerbi/` – Power BI setup, measures, and report guidance
+- `sql/` – SQLite schema, queries, and SQL layer guidance
 - `server.js` – Node.js API and static frontend server
 - `public/` – dashboard interface, styles, and visualizations
 - `src/sales_analysis.py` – data loading, validation, and Python analysis logic
@@ -109,6 +111,10 @@ After running the project, the following files are generated in `output/`:
 - `powerbi_sales_data.csv`
 
 ## Power BI
+
+## SQL layer
+
+Run `python main.py` to generate `output/sales.db`. The SQLite database contains the validated transaction table and derived profit metrics. See [`sql/README.md`](sql/README.md) for the schema, sample queries, and Python query helpers.
 
 See [`powerbi/README.md`](powerbi/README.md) for the recommended Power BI model and report layout. Run `python main.py` first, then load `output/powerbi_sales_data.csv` as the `Sales` table. The export includes a continuous month key, calendar fields, dimensions, revenue, units, estimated cost, estimated profit, margin, and discount.
 

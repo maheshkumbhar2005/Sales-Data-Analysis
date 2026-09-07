@@ -17,6 +17,7 @@ from src.sales_analysis import (
     split_time_series,
     summarize_sales,
 )
+from src.sql_layer import create_sales_database, query_category_sales, query_monthly_sales
 
 
 def test_load_sales_data_parses_dates(tmp_path: Path):
@@ -337,6 +338,30 @@ def test_export_power_bi_data_writes_model_ready_columns(tmp_path, monkeypatch):
     )
     assert exported.loc[0, "MonthStart"].startswith("2025-01-01")
     assert exported.loc[0, "Estimated_Profit"] == 60
+
+
+def test_sql_layer_replaces_rows_and_supports_analytics_queries(tmp_path):
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-02-01", "2025-01-15"]),
+            "Product": ["Mouse", "Laptop"],
+            "Category": ["Accessories", "Electronics"],
+            "Region": ["South", "North"],
+            "Units_Sold": [5, 2],
+            "Unit_Price": [20, 100],
+            "Total_Sales": [100, 200],
+        }
+    )
+    database_path = tmp_path / "sales.db"
+
+    create_sales_database(df, database_path)
+    create_sales_database(df.iloc[:1], database_path)
+
+    monthly = query_monthly_sales(database_path)
+    categories = query_category_sales(database_path)
+    assert list(monthly["month"]) == ["2025-02"]
+    assert monthly.loc[0, "revenue"] == 100
+    assert list(categories["category"]) == ["Accessories"]
 
 
 def test_period_comparison_and_anomaly_outputs():
