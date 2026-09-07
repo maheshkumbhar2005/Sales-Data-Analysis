@@ -333,6 +333,34 @@ def engineer_monthly_features(df: pd.DataFrame) -> pd.DataFrame:
     return features
 
 
+def split_time_series(
+    df: pd.DataFrame, test_size: float | int = 0.2
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split time-series rows chronologically into training and test sets."""
+    if df.empty:
+        raise ValueError("Cannot split empty time-series data.")
+    if isinstance(test_size, bool) or test_size <= 0:
+        raise ValueError("Test size must be greater than 0.")
+
+    ordered = df.copy()
+    sort_column = "Date" if "Date" in ordered.columns else "Month_Period"
+    if sort_column not in ordered.columns:
+        raise ValueError("Time-series data must contain Date or Month_Period.")
+    ordered = ordered.sort_values(sort_column, kind="stable").reset_index(drop=True)
+
+    if isinstance(test_size, int):
+        test_count = test_size
+    else:
+        if test_size >= 1:
+            raise ValueError("Fractional test size must be less than 1.")
+        test_count = max(1, int(np.ceil(len(ordered) * test_size)))
+    if test_count >= len(ordered):
+        raise ValueError("Test size must leave at least one training row.")
+
+    split_index = len(ordered) - test_count
+    return ordered.iloc[:split_index].copy(), ordered.iloc[split_index:].copy()
+
+
 def forecast_sales(df: pd.DataFrame, periods: int = 3) -> pd.DataFrame:
     """Forecast monthly revenue and units with trend and seasonal features."""
     if periods < 1:

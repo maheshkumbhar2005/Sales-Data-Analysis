@@ -85,6 +85,8 @@ Interactive Dashboard
 
 The model uses monthly trend and seasonal features to forecast revenue and units. Forecast months can be selected from the dashboard sidebar. Predictions are intended as a transparent baseline for this small sample dataset and should be retrained with more history before production use.
 
+Time-series data can be split with `split_time_series` for validation. The helper sorts by date or month and keeps the latest observations in the test set without shuffling, preventing future data from leaking into training.
+
 Because the sample CSV does not include product costs, profit is estimated with a 70% cost ratio, resulting in a 30% estimated margin. Replace `DEFAULT_COST_RATIO` or add a real cost column before using profitability metrics for operational decisions. Anomaly detection runs on monthly revenue and units with an Isolation Forest model.
 
 ## Sales data fields

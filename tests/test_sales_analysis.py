@@ -13,6 +13,7 @@ from src.sales_analysis import (
     forecast_sales,
     generate_business_insights,
     load_sales_data,
+    split_time_series,
     summarize_sales,
 )
 
@@ -287,6 +288,30 @@ def test_forecast_sales_rejects_invalid_horizon():
         assert "at least 1" in str(exc)
     else:
         raise AssertionError("Expected invalid forecast horizon error")
+
+
+def test_split_time_series_sorts_and_preserves_chronological_holdout():
+    features = pd.DataFrame(
+        {
+            "Month_Period": pd.PeriodIndex(["2025-03", "2025-01", "2025-02"], freq="M"),
+            "Total_Sales": [300, 100, 200],
+        }
+    )
+
+    train, test = split_time_series(features, test_size=1)
+
+    assert list(train["Month_Period"].astype(str)) == ["2025-01", "2025-02"]
+    assert list(test["Month_Period"].astype(str)) == ["2025-03"]
+    assert train["Month_Period"].max() < test["Month_Period"].min()
+
+
+def test_split_time_series_rejects_holdout_without_training_rows():
+    features = pd.DataFrame(
+        {"Date": pd.to_datetime(["2025-01-01"]), "Total_Sales": [100]}
+    )
+
+    with pytest.raises(ValueError, match="at least one training row"):
+        split_time_series(features, test_size=0.2)
 
 
 def test_period_comparison_and_anomaly_outputs():
