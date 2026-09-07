@@ -13,6 +13,7 @@ from src.sales_analysis import (
     forecast_sales,
     generate_business_insights,
     load_sales_data,
+    export_power_bi_data,
     split_time_series,
     summarize_sales,
 )
@@ -312,6 +313,30 @@ def test_split_time_series_rejects_holdout_without_training_rows():
 
     with pytest.raises(ValueError, match="at least one training row"):
         split_time_series(features, test_size=0.2)
+
+
+def test_export_power_bi_data_writes_model_ready_columns(tmp_path, monkeypatch):
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2025-01-15"]),
+            "Product": ["Laptop"],
+            "Category": ["Electronics"],
+            "Region": ["North"],
+            "Units_Sold": [2],
+            "Unit_Price": [100],
+            "Total_Sales": [200],
+        }
+    )
+    monkeypatch.setattr("src.sales_analysis.OUTPUT_DIR", tmp_path)
+
+    export_power_bi_data(df)
+
+    exported = pd.read_csv(tmp_path / "powerbi_sales_data.csv")
+    assert {"MonthStart", "Year", "MonthNumber", "MonthName", "Estimated_Profit"}.issubset(
+        exported.columns
+    )
+    assert exported.loc[0, "MonthStart"].startswith("2025-01-01")
+    assert exported.loc[0, "Estimated_Profit"] == 60
 
 
 def test_period_comparison_and_anomaly_outputs():

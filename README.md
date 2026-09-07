@@ -18,6 +18,7 @@ This project is a sales analytics dashboard built with Python, pandas, and a Nod
 - Flags unusual monthly revenue and unit patterns
 - Shows estimated profit and margin using a documented cost assumption
 - Exports summary tables and JSON metrics to the `output/` folder
+- Exports a Power BI-ready transaction table with date and profit dimensions
 - Keeps the existing MIT license intact
 
 ## Project structure
@@ -25,6 +26,7 @@ This project is a sales analytics dashboard built with Python, pandas, and a Nod
 - `data/` – sample dataset
 - `src/` – analysis logic
 - `output/` – generated charts and summaries
+- `powerbi/` – Power BI setup, measures, and report guidance
 - `server.js` – Node.js API and static frontend server
 - `public/` – dashboard interface, styles, and visualizations
 - `src/sales_analysis.py` – data loading, validation, and Python analysis logic
@@ -104,6 +106,11 @@ After running the project, the following files are generated in `output/`:
 - `monthly_sales.csv`
 - `sales_summary.json`
 - `sales_anomalies.csv`
+- `powerbi_sales_data.csv`
+
+## Power BI
+
+See [`powerbi/README.md`](powerbi/README.md) for the recommended Power BI model and report layout. Run `python main.py` first, then load `output/powerbi_sales_data.csv` as the `Sales` table. The export includes a continuous month key, calendar fields, dimensions, revenue, units, estimated cost, estimated profit, margin, and discount.
 
 ## Notes
 

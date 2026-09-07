@@ -39,6 +39,7 @@ NON_NEGATIVE_COLUMNS = {
 }
 
 
+
 def load_sales_data(path: Path) -> pd.DataFrame:
     try:
         df = pd.read_csv(path)
@@ -408,6 +409,35 @@ def export_summary(summary: dict) -> None:
     (OUTPUT_DIR / "sales_summary.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
 
+def export_power_bi_data(df: pd.DataFrame) -> None:
+    """Export enriched transaction data with fields useful for Power BI."""
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    power_bi_data = add_profit_metrics(df).copy()
+    power_bi_data["MonthStart"] = power_bi_data["Date"].dt.to_period("M").dt.to_timestamp()
+    power_bi_data["Year"] = power_bi_data["Date"].dt.year
+    power_bi_data["MonthNumber"] = power_bi_data["Date"].dt.month
+    power_bi_data["MonthName"] = power_bi_data["Date"].dt.month_name()
+    columns = [
+        "Date",
+        "MonthStart",
+        "Year",
+        "MonthNumber",
+        "MonthName",
+        "Product",
+        "Category",
+        "Region",
+        "Units_Sold",
+        "Unit_Price",
+        "Total_Sales",
+        "Cost_Price",
+        "Estimated_Cost",
+        "Estimated_Profit",
+        "Estimated_Margin_%",
+        "Discount",
+    ]
+    power_bi_data[columns].to_csv(OUTPUT_DIR / "powerbi_sales_data.csv", index=False)
+
+
 def create_visuals(df: pd.DataFrame, summary: dict) -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -502,6 +532,7 @@ def main() -> None:
     df = load_sales_data(DATA_PATH)
     summary = summarize_sales(df)
     export_summary(summary)
+    export_power_bi_data(df)
     create_visuals(df, summary)
     print_report(summary)
     print("\nDashboard and summary files saved to output/")
