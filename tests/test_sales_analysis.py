@@ -126,6 +126,16 @@ def test_load_sales_data_rejects_blank_dimension_values(tmp_path: Path):
         load_sales_data(csv_file)
 
 
+def test_date_ranges_reject_inverted_bounds():
+    df = load_sales_data(DATA_PATH)
+
+    with pytest.raises(ValueError, match="Start date must be on or before end date"):
+        filter_sales_data(df, "2025-12-31", "2025-01-01")
+
+    with pytest.raises(ValueError, match="Start date must be on or before end date"):
+        compare_periods(df, "2025-12-31", "2025-01-01")
+
+
 def test_load_sales_data_rejects_invalid_optional_numeric_values(tmp_path: Path):
     csv_file = tmp_path / "invalid_optional.csv"
     csv_file.write_text(
