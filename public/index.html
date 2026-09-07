@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101c2c">
+  <title>Sales Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">S</span><span>Sales<br><strong>Intelligence</strong></span></div>
+      <div class="side-label">Workspace</div>
+      <nav><a class="active" href="#overview">Overview</a><a href="#trends">Trends</a><a href="#performance">Performance</a><a href="#forecast">Forecast</a></nav>
+      <div class="sidebar-note"><span class="live-dot"></span><div><strong>Live dataset</strong><small>Local analysis feed</small></div></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div><p class="eyebrow">Commercial performance</p><h1>Sales intelligence</h1><p class="lede">A clear read on revenue, momentum, and what is selling.</p></div><a class="download-button" id="download" href="/api/download.csv"><span>↓</span> Export CSV</a></header>
+      <section class="toolbar" aria-label="Dashboard filters">
+        <label>Date range <span><input id="start-date" type="date"><i>to</i><input id="end-date" type="date"></span></label>
+        <label>Regions <select id="regions" multiple></select></label>
+        <label>Categories <select id="categories" multiple></select></label>
+        <label>Forecast <select id="periods"><option value="3">3 months</option><option value="6">6 months</option><option value="12">12 months</option></select></label>
+        <button id="reset" class="reset-button">Reset</button>
+      </section>
+      <div id="empty-state" class="empty-state hidden">No sales match these filters. Try widening your date range or selecting more categories.</div>
+      <div id="dashboard">
+        <section id="overview" class="metric-grid">
+          <article class="metric accent"><span>Total revenue</span><strong id="revenue">--</strong><small id="growth">--</small></article>
+          <article class="metric"><span>Units sold</span><strong id="units">--</strong><small id="orders">-- orders</small></article>
+          <article class="metric"><span>Estimated profit</span><strong id="profit">--</strong><small id="margin">-- margin</small></article>
+          <article class="metric"><span>Average order</span><strong id="avg-order">--</strong><small>per transaction</small></article>
+          <article class="metric highlight"><span>Top category</span><strong id="top-category">--</strong><small id="top-region">-- leads by region</small></article>
+        </section>
+        <section class="insight-row"><div class="section-heading"><p class="eyebrow">At a glance</p><h2>What the data says</h2></div><div id="insights" class="insights"></div><div class="anomaly-box"><div class="box-title"><span class="status-icon">!</span><div><h3>Anomaly watch</h3><p>Unusual monthly patterns</p></div></div><div id="anomalies"></div></div></section>
+        <section id="trends" class="content-grid"><article class="panel wide"><div class="panel-header"><div><p class="eyebrow">Trajectory</p><h2>Revenue and units</h2></div><span class="legend"><i class="orange"></i> Revenue <i class="teal"></i> Units</span></div><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Momentum</p><h2>Monthly growth</h2></div></div><div class="chart-wrap compact"><canvas id="growth-chart"></canvas></div></article></section>
+        <section id="performance" class="content-grid lower"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Mix</p><h2>Category contribution</h2></div></div><div class="chart-wrap doughnut"><canvas id="category-chart"></canvas></div><div id="category-list" class="rank-list"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Leaderboard</p><h2>Top products by units</h2></div></div><div class="chart-wrap product-chart"><canvas id="product-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Geography</p><h2>Regional performance</h2></div></div><div id="region-list" class="region-list"></div></article></section>
+        <section id="forecast" class="content-grid forecast-section"><article class="panel wide"><div class="panel-header"><div><p class="eyebrow">Baseline model</p><h2>Revenue outlook</h2></div><span class="forecast-tag">Projected</span></div><div class="chart-wrap"><canvas id="forecast-chart"></canvas></div></article><article class="panel forecast-copy"><p class="eyebrow">Planning signal</p><strong id="forecast-total">--</strong><p>Projected revenue across the selected horizon, based on the recent trend line.</p><div class="mini-stat"><span>Best month</span><b id="best-month">--</b></div><div class="mini-stat"><span>Lowest month</span><b id="worst-month">--</b></div></article></section>
+      </div>
+      <footer>Sales Data Analysis <span>•</span> Powered by Node.js and the local CSV</footer>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

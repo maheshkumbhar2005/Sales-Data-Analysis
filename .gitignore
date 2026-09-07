@@ -27,3 +27,4 @@ output/
 
 # Environment variables
 .env
+.coverage

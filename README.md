@@ -1,13 +1,13 @@
 # Sales Data Analysis
 
-This project is a sales analytics dashboard built with Python, pandas, Plotly, and Streamlit. It reads a sales dataset, summarizes key business metrics, and provides interactive charts, filters, and exports for quick analysis.
+This project is a sales analytics dashboard built with Python, pandas, and a Node.js frontend. It reads a sales dataset, summarizes key business metrics, and provides interactive charts, filters, and exports for quick analysis.
 
 ## Features
 
 - Loads a sample sales dataset from `data/sales_data.csv`
 - Calculates core KPIs such as total revenue, total units sold, average order value, and average unit price
 - Identifies top category, region, and product by sales volume
-- Builds an interactive Streamlit dashboard with Plotly charts
+- Serves a responsive Node.js dashboard with Chart.js visualizations
 - Organizes the dashboard into Overview, Trends, Products, Geography, Forecast, and Data tabs
 - Includes interactive donut, comparison, trend, growth, product, and scatter charts
 - Generates automatic business insights from the active filters
@@ -25,8 +25,9 @@ This project is a sales analytics dashboard built with Python, pandas, Plotly, a
 - `data/` – sample dataset
 - `src/` – analysis logic
 - `output/` – generated charts and summaries
-- `app.py` – Streamlit dashboard entry point
-- `src/sales_analysis.py` – data loading, validation, and analysis logic
+- `server.js` – Node.js API and static frontend server
+- `public/` – dashboard interface, styles, and visualizations
+- `src/sales_analysis.py` – data loading, validation, and Python analysis logic
 - `requirements.txt` – Python dependencies
 - `LICENSE` – MIT license retained from the repository
 
@@ -56,15 +57,15 @@ The pytest configuration reports line coverage for `src/` and highlights uncover
 
 ## Web dashboard
 
-A simple browser dashboard is also included using Streamlit.
+The dashboard is served by Node.js and uses the local CSV as its data source. Node.js 18 or newer is required.
 
 Run it with:
 
 ```bash
-streamlit run app.py
+npm start
 ```
 
-The dashboard lets you filter by date range, region, and category, view revenue and unit trends, inspect category, region, and product performance, and download filtered data.
+Open `http://localhost:3000`. The dashboard lets you filter by date range, region, and category, view revenue and unit trends, inspect category, region, and product performance, review a baseline forecast, and download filtered data. Use `npm run dev` during development for automatic server restarts.
 
 ## Prediction workflow
 

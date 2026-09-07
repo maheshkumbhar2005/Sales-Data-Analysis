@@ -1,0 +1,14 @@
+{
+  "name": "sales-data-analysis-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node.js dashboard for the sales analysis project",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
