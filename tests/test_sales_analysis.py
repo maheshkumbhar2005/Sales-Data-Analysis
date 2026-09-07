@@ -111,6 +111,54 @@ def test_load_sales_data_rejects_negative_values(tmp_path: Path):
         load_sales_data(csv_file)
 
 
+def test_load_sales_data_rejects_blank_dimension_values(tmp_path: Path):
+    csv_file = tmp_path / "blank_product.csv"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
+        "2025-01-01, ,Electronics,North,2,100,200\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="blank values"):
+        load_sales_data(csv_file)
+
+
+def test_load_sales_data_rejects_invalid_optional_numeric_values(tmp_path: Path):
+    csv_file = tmp_path / "invalid_optional.csv"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales,Discount\n"
+        "2025-01-01,Laptop,Electronics,North,2,100,200,unknown\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="optional numeric values"):
+        load_sales_data(csv_file)
+
+
+def test_load_sales_data_rejects_fractional_units(tmp_path: Path):
+    csv_file = tmp_path / "fractional_units.csv"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
+        "2025-01-01,Laptop,Electronics,North,2.5,100,250\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="fractional"):
+        load_sales_data(csv_file)
+
+
+def test_load_sales_data_rejects_out_of_range_discount(tmp_path: Path):
+    csv_file = tmp_path / "invalid_discount.csv"
+    csv_file.write_text(
+        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales,Discount\n"
+        "2025-01-01,Laptop,Electronics,North,2,100,200,101\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Discount values outside"):
+        load_sales_data(csv_file)
+
+
 def test_source_data_includes_profit_analysis_columns():
     df = load_sales_data(DATA_PATH)
 

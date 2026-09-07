@@ -24,6 +24,9 @@ REQUIRED_COLUMNS = {
     "Unit_Price",
     "Total_Sales",
 }
+REQUIRED_TEXT_COLUMNS = {"Product", "Category", "Region"}
+REQUIRED_NUMERIC_COLUMNS = {"Units_Sold", "Unit_Price", "Total_Sales"}
+OPTIONAL_NUMERIC_COLUMNS = {"Cost_Price", "Profit", "Profit_Margin", "Discount"}
 DEFAULT_COST_RATIO = 0.70
 NON_NEGATIVE_COLUMNS = {
     "Units_Sold",
@@ -47,16 +50,48 @@ def load_sales_data(path: Path) -> pd.DataFrame:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Sales CSV is missing required columns: {missing}")
 
+    row_count = len(df)
+    blank_text = [
+        column
+        for column in REQUIRED_TEXT_COLUMNS
+        if df[column].isna().any()
+        or df[column].astype("string").str.strip().eq("").any()
+    ]
+    if blank_text:
+        raise ValueError(
+            "Sales CSV contains blank values in required columns: "
+            + ", ".join(sorted(blank_text))
+        )
+
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df["Units_Sold"] = pd.to_numeric(df["Units_Sold"], errors="coerce")
-    df["Unit_Price"] = pd.to_numeric(df["Unit_Price"], errors="coerce")
-    df["Total_Sales"] = pd.to_numeric(df["Total_Sales"], errors="coerce")
-    for column in ("Cost_Price", "Profit", "Profit_Margin", "Discount"):
+    for column in REQUIRED_NUMERIC_COLUMNS | OPTIONAL_NUMERIC_COLUMNS:
         if column in df:
             df[column] = pd.to_numeric(df[column], errors="coerce")
-    df = df.dropna(subset=list(REQUIRED_COLUMNS)).drop_duplicates().copy()
+
+    invalid_required = df["Date"].isna()
+    for column in REQUIRED_NUMERIC_COLUMNS:
+        invalid_required |= df[column].isna() | ~np.isfinite(df[column])
+    if invalid_required.any():
+        raise ValueError(
+            f"Sales CSV contains no valid sales rows: {int(invalid_required.sum())} "
+            "rows have invalid dates or required numeric values."
+        )
+
+    invalid_optional = pd.Series(False, index=df.index)
+    for column in OPTIONAL_NUMERIC_COLUMNS.intersection(df.columns):
+        invalid_optional |= df[column].isna() | ~np.isfinite(df[column])
+    if invalid_optional.any():
+        raise ValueError(
+            f"Sales CSV contains {int(invalid_optional.sum())} rows with invalid "
+            "optional numeric values."
+        )
+
+    if not df["Units_Sold"].mod(1).eq(0).all():
+        raise ValueError("Sales CSV contains fractional values in Units_Sold.")
+
+    df = df.drop_duplicates().copy()
     if df.empty:
-        raise ValueError("Sales CSV contains no valid sales rows.")
+        raise ValueError(f"Sales CSV contains no valid sales rows out of {row_count}.")
 
     negative_columns = [
         column
@@ -68,6 +103,11 @@ def load_sales_data(path: Path) -> pd.DataFrame:
             "Sales CSV contains negative values in: "
             + ", ".join(sorted(negative_columns))
         )
+
+    if "Discount" in df and not df["Discount"].between(0, 100).all():
+        raise ValueError("Sales CSV contains Discount values outside 0 to 100%.")
+    if "Profit_Margin" in df and not df["Profit_Margin"].between(-100, 100).all():
+        raise ValueError("Sales CSV contains Profit_Margin values outside -100 to 100%.")
 
     df["Month"] = df["Date"].dt.to_period("M").astype(str)
     return df
