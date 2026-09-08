@@ -9,13 +9,16 @@ from src.sales_analysis import (
     compare_periods,
     detect_sales_anomalies,
     engineer_monthly_features,
+    enrich_sales_data,
+    export_power_bi_data,
     filter_sales_data,
     forecast_sales,
     generate_business_insights,
     load_sales_data,
-    export_power_bi_data,
+    run_sales_pipeline,
     split_time_series,
     summarize_sales,
+    validate_sales_data,
 )
 from src.sql_layer import create_sales_database, query_category_sales, query_monthly_sales
 
@@ -43,16 +46,21 @@ def test_load_sales_data_parses_dates(tmp_path: Path):
     assert pd.api.types.is_datetime64_any_dtype(df["Date"])
 
 
-def test_load_sales_data_rejects_missing_columns(tmp_path: Path):
+def test_validate_sales_data_rejects_missing_columns(tmp_path: Path):
     csv_file = tmp_path / "missing.csv"
     csv_file.write_text("Date,Product\n2025-01-01,Laptop\n", encoding="utf-8")
+    df = pd.read_csv(csv_file)
 
-    try:
-        load_sales_data(csv_file)
-    except ValueError as exc:
-        assert "missing required columns" in str(exc)
-    else:
-        raise AssertionError("Expected missing-column validation error")
+    with pytest.raises(ValueError, match="missing required columns"):
+        validate_sales_data(df)
+
+
+def test_run_sales_pipeline_generates_summary():
+    summary = run_sales_pipeline(DATA_PATH)
+
+    assert "total_revenue" in summary
+    assert "top_category" in summary
+    assert summary["total_units"] > 0
 
 
 def test_load_sales_data_rejects_empty_file(tmp_path: Path):

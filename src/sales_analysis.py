@@ -114,6 +114,117 @@ def load_sales_data(path: Path) -> pd.DataFrame:
     return df
 
 
+def validate_sales_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Validate an in-memory sales dataframe before downstream analysis."""
+    missing_columns = REQUIRED_COLUMNS.difference(df.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"Sales CSV is missing required columns: {missing}")
+
+    row_count = len(df)
+    blank_text = [
+        column
+        for column in REQUIRED_TEXT_COLUMNS
+        if df[column].isna().any()
+        or df[column].astype("string").str.strip().eq("").any()
+    ]
+    if blank_text:
+        raise ValueError(
+            "Sales CSV contains blank values in required columns: "
+            + ", ".join(sorted(blank_text))
+        )
+
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    for column in REQUIRED_NUMERIC_COLUMNS | OPTIONAL_NUMERIC_COLUMNS:
+        if column in df:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+
+    invalid_required = df["Date"].isna()
+    for column in REQUIRED_NUMERIC_COLUMNS:
+        invalid_required |= df[column].isna() | ~np.isfinite(df[column])
+    if invalid_required.any():
+        raise ValueError(
+            f"Sales CSV contains no valid sales rows: {int(invalid_required.sum())} "
+            "rows have invalid dates or required numeric values."
+        )
+
+    invalid_optional = pd.Series(False, index=df.index)
+    for column in OPTIONAL_NUMERIC_COLUMNS.intersection(df.columns):
+        invalid_optional |= df[column].isna() | ~np.isfinite(df[column)]
+    if invalid_optional.any():
+        raise ValueError(
+            f"Sales CSV contains {int(invalid_optional.sum())} rows with invalid "
+            "optional numeric values."
+        )
+
+    if not df["Units_Sold"].mod(1).eq(0).all():
+        raise ValueError("Sales CSV contains fractional values in Units_Sold.")
+
+    df = df.drop_duplicates().copy()
+    if df.empty:
+        raise ValueError(f"Sales CSV contains no valid sales rows out of {row_count}.")
+
+    negative_columns = [
+        column
+        for column in NON_NEGATIVE_COLUMNS.intersection(df.columns)
+        if df[column].lt(0).any()
+    ]
+    if negative_columns:
+        raise ValueError(
+            "Sales CSV contains negative values in: "
+            + ", ".join(sorted(negative_columns))
+        )
+
+    if "Discount" in df and not df["Discount"].between(0, 100).all():
+        raise ValueError("Sales CSV contains Discount values outside 0 to 100%.")
+    if "Profit_Margin" in df and not df["Profit_Margin"].between(-100, 100).all():
+        raise ValueError("Sales CSV contains Profit_Margin values outside -100 to 100%.")
+
+    df["Month"] = df["Date"].dt.to_period("M").astype(str)
+    return df
+
+
+def load_sales_data(path: Path) -> pd.DataFrame:
+    """Load sales data from disk and validate it before analysis."""
+    try:
+        df = pd.read_csv(path)
+    except (OSError, UnicodeDecodeError, pd.errors.EmptyDataError, pd.errors.ParserError) as exc:
+        raise ValueError(f"Unable to read sales CSV: {path}") from exc
+    return validate_sales_data(df)
+
+
+def enrich_sales_data(df: pd.DataFrame, cost_ratio: float = DEFAULT_COST_RATIO) -> pd.DataFrame:
+    """Add canonical cost, profit, margin, and derived business metrics."""
+    return add_profit_metrics(df, cost_ratio=cost_ratio)
+
+
+def summarize_sales_data(df: pd.DataFrame) -> dict:
+    """Create the business summary from an enriched sales dataframe."""
+    return summarize_sales(df)
+
+
+def export_sales_outputs(df: pd.DataFrame, summary: dict) -> None:
+    """Write the summary tables, JSON metrics, and Power BI export files."""
+    export_summary(summary)
+    export_power_bi_data(df)
+
+
+def visualize_sales_data(df: pd.DataFrame, summary: dict) -> None:
+    """Generate charts and dashboard images from the enriched sales data."""
+    create_visuals(df, summary)
+
+
+def run_sales_pipeline(data_path: Path = DATA_PATH) -> dict:
+    """Run the full modular pipeline: load -> validate -> enrich -> summarize -> export -> visualize."""
+    raw_df = load_sales_data(data_path)
+    validated_df = validate_sales_data(raw_df)
+    enriched_df = enrich_sales_data(validated_df)
+    summary = summarize_sales_data(enriched_df)
+    export_sales_outputs(enriched_df, summary)
+    visualize_sales_data(enriched_df, summary)
+    return summary
+
+
 def add_profit_metrics(df: pd.DataFrame, cost_ratio: float = DEFAULT_COST_RATIO) -> pd.DataFrame:
     """Add canonical cost, profit, margin, and discount metrics."""
     if not 0 <= cost_ratio <= 1:
@@ -540,11 +651,7 @@ def print_report(summary: dict) -> None:
 
 
 def main() -> None:
-    df = load_sales_data(DATA_PATH)
-    summary = summarize_sales(df)
-    export_summary(summary)
-    export_power_bi_data(df)
-    create_visuals(df, summary)
+    summary = run_sales_pipeline(DATA_PATH)
     print_report(summary)
     print("\nDashboard and summary files saved to output/")
 
