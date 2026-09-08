@@ -139,6 +139,15 @@ def add_profit_metrics(df: pd.DataFrame, cost_ratio: float = DEFAULT_COST_RATIO)
     return enriched
 
 
+def _validate_date_range(start_date, end_date) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Validate and normalize a date range used by the sales analysis pipeline."""
+    start = pd.Timestamp(start_date)
+    end = pd.Timestamp(end_date)
+    if start > end:
+        raise ValueError("Start date must be on or before end date.")
+    return start, end
+
+
 def filter_sales_data(
     df: pd.DataFrame,
     start_date,
@@ -147,10 +156,7 @@ def filter_sales_data(
     categories: list[str] | None = None,
 ) -> pd.DataFrame:
     """Apply dashboard filters in one place."""
-    start = pd.Timestamp(start_date)
-    end = pd.Timestamp(end_date)
-    if start > end:
-        raise ValueError("Start date must be on or before end date.")
+    start, end = _validate_date_range(start_date, end_date)
 
     filtered = df[
         df["Date"].between(start, end)
@@ -164,10 +170,7 @@ def filter_sales_data(
 
 def compare_periods(df: pd.DataFrame, start_date, end_date) -> dict:
     """Compare a selected period with the immediately preceding equal period."""
-    start = pd.Timestamp(start_date)
-    end = pd.Timestamp(end_date)
-    if start > end:
-        raise ValueError("Start date must be on or before end date.")
+    start, end = _validate_date_range(start_date, end_date)
 
     duration = end - start + pd.Timedelta(days=1)
     previous_end = start - pd.Timedelta(days=1)
