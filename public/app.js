@@ -338,6 +338,13 @@ async function init() {
     toggleBtn.addEventListener("click", toggleTheme);
   }
 
+  document.querySelectorAll(".workspace-nav a").forEach((link) => {
+    link.addEventListener("click", () => {
+      document.querySelectorAll(".workspace-nav a").forEach((item) => item.classList.remove("active"));
+      link.classList.add("active");
+    });
+  });
+
   const response = await fetch("/api/dashboard");
   const data = await response.json();
   document.querySelector("#start-date").value = data.filters.minDate;

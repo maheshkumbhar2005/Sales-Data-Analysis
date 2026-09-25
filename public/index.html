@@ -19,27 +19,43 @@
   </script>
 </head>
 <body>
+  <header class="workspace-header">
+    <div class="workspace-header-inner">
+      <div class="workspace-left">
+        <div class="brand">
+          <span class="brand-mark">S</span>
+          <span class="brand-title">Sales <strong>Intelligence</strong></span>
+        </div>
+        <div class="workspace-badge">Workspace</div>
+        <nav class="workspace-nav">
+          <a class="active" href="#overview">Overview</a>
+          <a href="#trends">Trends</a>
+          <a href="#performance">Performance</a>
+          <a href="#forecast">Forecast</a>
+          <a href="#python-visuals">Generated Plots</a>
+        </nav>
+      </div>
+      <div class="workspace-right">
+        <div class="live-status">
+          <span class="live-dot"></span>
+          <span>Live dataset</span>
+        </div>
+        <button id="theme-toggle" class="theme-toggle-button" aria-label="Toggle theme" title="Toggle dark or light theme">
+          <span class="theme-icon sun-icon">☀️</span>
+          <span class="theme-icon moon-icon">🌙</span>
+          <span class="theme-text">Dark Mode</span>
+        </button>
+        <a class="download-button" id="download" href="/api/download.csv"><span>↓</span> Export CSV</a>
+      </div>
+    </div>
+  </header>
   <div class="shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">S</span><span>Sales<br><strong>Intelligence</strong></span></div>
-      <div class="side-label">Workspace</div>
-      <nav><a class="active" href="#overview">Overview</a><a href="#trends">Trends</a><a href="#performance">Performance</a><a href="#forecast">Forecast</a><a href="#python-visuals">Generated Plots</a></nav>
-      <div class="sidebar-note"><span class="live-dot"></span><div><strong>Live dataset</strong><small>Local analysis feed</small></div></div>
-    </aside>
     <main class="main">
       <header class="topbar">
         <div>
           <p class="eyebrow">Commercial performance</p>
           <h1>Sales intelligence</h1>
           <p class="lede">A clear read on revenue, momentum, and what is selling.</p>
-        </div>
-        <div class="topbar-actions">
-          <button id="theme-toggle" class="theme-toggle-button" aria-label="Toggle theme" title="Toggle dark or light theme">
-            <span class="theme-icon sun-icon">☀️</span>
-            <span class="theme-icon moon-icon">🌙</span>
-            <span class="theme-text">Dark Mode</span>
-          </button>
-          <a class="download-button" id="download" href="/api/download.csv"><span>↓</span> Export CSV</a>
         </div>
       </header>
       <section class="toolbar" aria-label="Dashboard filters">
