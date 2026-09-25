@@ -44,8 +44,8 @@ function getMoneyTooltip() {
     borderColor: isDark ? "#334155" : "transparent",
     borderWidth: isDark ? 1 : 0,
     padding: 10,
-    titleFont: { family: "DM Sans" },
-    bodyFont: { family: "DM Sans" },
+    titleFont: { family: "Outfit", weight: 600, size: 12 },
+    bodyFont: { family: "JetBrains Mono", size: 11 },
     callbacks: { label: (context) => money.format(rupees(context.raw)) }
   };
 }
@@ -90,12 +90,12 @@ function chartDefaults() {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: tickColor, font: { family: "DM Sans", size: 10 } }
+        ticks: { color: tickColor, font: { family: "JetBrains Mono", size: 10 } }
       },
       y: {
         grid: { color: gridColor },
         border: { display: false },
-        ticks: { color: tickColor, font: { family: "DM Sans", size: 10 }, callback: (value) => moneyShort(value) }
+        ticks: { color: tickColor, font: { family: "JetBrains Mono", size: 10 }, callback: (value) => moneyShort(value) }
       }
     }
   };
@@ -232,7 +232,7 @@ function renderCharts(data) {
         },
         y: {
           grid: { display: false },
-          ticks: { color: isDark ? "#e2e8f0" : "#17212b", font: { size: 10 } }
+          ticks: { color: isDark ? "#e2e8f0" : "#17212b", font: { family: "Plus Jakarta Sans", size: 11, weight: 500 } }
         }
       }
     }
