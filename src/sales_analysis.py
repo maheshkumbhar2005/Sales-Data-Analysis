@@ -150,7 +150,7 @@ def validate_sales_data(df: pd.DataFrame) -> pd.DataFrame:
 
     invalid_optional = pd.Series(False, index=df.index)
     for column in OPTIONAL_NUMERIC_COLUMNS.intersection(df.columns):
-        invalid_optional |= df[column].isna() | ~np.isfinite(df[column)]
+        invalid_optional |= df[column].isna() | ~np.isfinite(df[column])
     if invalid_optional.any():
         raise ValueError(
             f"Sales CSV contains {int(invalid_optional.sum())} rows with invalid "

@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL(".", import.meta.url));
 const dataPath = join(root, "data", "sales_data.csv");
 const publicPath = join(root, "public");
-const port = Number(process.env.PORT || 3000);
+const outputDir = join(root, "output");
+const port = Number(process.env.PORT || 5000);
 
 function parseCsv(text) {
   const rows = [];
@@ -191,6 +192,28 @@ const server = createServer(async (request, response) => {
       response.end(csv(buildDashboard(sales, queryParams(url)).rows));
       return;
     }
+    if (url.pathname.startsWith("/output/")) {
+      const relPath = url.pathname.replace(/^\/output\//, "");
+      const filePath = normalize(join(outputDir, relPath));
+      if (!filePath.startsWith(outputDir)) {
+        response.writeHead(403);
+        response.end("Forbidden");
+        return;
+      }
+      const content = await readFile(filePath);
+      const types = {
+        ".html": "text/html",
+        ".css": "text/css",
+        ".js": "text/javascript",
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".json": "application/json",
+        ".csv": "text/csv",
+      };
+      response.writeHead(200, { "Content-Type": types[extname(filePath)] || "application/octet-stream" });
+      response.end(content);
+      return;
+    }
     const requested = url.pathname === "/" ? "/index.html" : url.pathname;
     const filePath = normalize(join(publicPath, requested));
     if (!filePath.startsWith(publicPath)) {
@@ -199,7 +222,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     const content = await readFile(filePath);
-    const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml" };
+    const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png" };
     response.writeHead(200, { "Content-Type": types[extname(filePath)] || "application/octet-stream" });
     response.end(content);
   } catch (error) {
