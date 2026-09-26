@@ -1,5 +1,7 @@
 const charts = {};
-const colors = ["#168c83", "#e4572e", "#e7a93b", "#4e79a7", "#7e8791"];
+const lightColors = ["#168c83", "#e4572e", "#e7a93b", "#4e79a7", "#7e8791"];
+const darkColors = ["#2dd4bf", "#ff7849", "#fbbf24", "#60a5fa", "#c084fc"];
+const getColors = () => (getTheme() === "dark" ? darkColors : lightColors);
 const USD_TO_INR = 83;
 const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -26,7 +28,7 @@ function setTheme(theme) {
   localStorage.setItem("sales_dashboard_theme", theme);
   updateThemeUI();
   if (cachedDashboardData) {
-    renderCharts(cachedDashboardData);
+    render(cachedDashboardData);
   }
 }
 
@@ -38,10 +40,10 @@ function toggleTheme() {
 function getMoneyTooltip() {
   const isDark = getTheme() === "dark";
   return {
-    backgroundColor: isDark ? "#1a2430" : "#101c2c",
-    titleColor: "#f8fafc",
-    bodyColor: "#f8fafc",
-    borderColor: isDark ? "#334155" : "transparent",
+    backgroundColor: isDark ? "#1e293b" : "#101c2c",
+    titleColor: "#ffffff",
+    bodyColor: isDark ? "#38bdf8" : "#f8fafc",
+    borderColor: isDark ? "#475569" : "transparent",
     borderWidth: isDark ? 1 : 0,
     padding: 10,
     titleFont: { family: "Outfit", weight: 600, size: 12 },
@@ -77,8 +79,8 @@ function destroyChart(id) {
 
 function chartDefaults() {
   const isDark = getTheme() === "dark";
-  const tickColor = isDark ? "#94a3b8" : "#87918f";
-  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "#e9e7e1";
+  const tickColor = isDark ? "#cbd5e1" : "#718096";
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.12)" : "#e9e7e1";
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -103,8 +105,8 @@ function chartDefaults() {
 
 function renderCharts(data) {
   const isDark = getTheme() === "dark";
-  const pointBg = isDark ? "#131c26" : "#fffdf8";
-  const doughnutBorder = isDark ? "#131c26" : "#fffdf8";
+  const pointBg = isDark ? "#131d27" : "#fffdf8";
+  const doughnutBorder = isDark ? "#131d27" : "#fffdf8";
   const defaults = chartDefaults();
 
   destroyChart("trend");
@@ -116,21 +118,21 @@ function renderCharts(data) {
         {
           label: "Revenue",
           data: data.monthly.map((item) => item.revenue),
-          borderColor: "#e4572e",
-          backgroundColor: isDark ? "rgba(228,87,46,.18)" : "rgba(228,87,46,.10)",
+          borderColor: isDark ? "#ff7849" : "#e4572e",
+          backgroundColor: isDark ? "rgba(255, 120, 73, 0.20)" : "rgba(228,87,46,.10)",
           fill: true,
           tension: .35,
-          pointRadius: 3,
+          pointRadius: 4,
           pointBackgroundColor: pointBg,
           pointBorderWidth: 2
         },
         {
           label: "Units",
           data: data.monthly.map((item) => item.units),
-          borderColor: "#168c83",
+          borderColor: isDark ? "#2dd4bf" : "#168c83",
           backgroundColor: "transparent",
           tension: .35,
-          pointRadius: 3,
+          pointRadius: 4,
           pointBackgroundColor: pointBg,
           pointBorderWidth: 2,
           yAxisID: "units"
@@ -146,7 +148,7 @@ function renderCharts(data) {
           position: "right",
           grid: { display: false },
           border: { display: false },
-          ticks: { color: defaults.scales.y.ticks.color, font: { size: 10 } }
+          ticks: { color: isDark ? "#2dd4bf" : "#168c83", font: { family: "JetBrains Mono", size: 10 } }
         }
       }
     }
@@ -160,7 +162,7 @@ function renderCharts(data) {
       datasets: [
         {
           data: data.monthly.map((item) => item.growth),
-          backgroundColor: data.monthly.map((item) => item.growth >= 0 ? "#168c83" : "#e7a93b"),
+          backgroundColor: data.monthly.map((item) => item.growth >= 0 ? (isDark ? "#2dd4bf" : "#168c83") : (isDark ? "#fbbf24" : "#e7a93b")),
           borderRadius: 2,
           barPercentage: .65
         }
@@ -193,7 +195,7 @@ function renderCharts(data) {
       datasets: [
         {
           data: data.categories.map((item) => item.revenue),
-          backgroundColor: colors,
+          backgroundColor: getColors(),
           borderWidth: 3,
           borderColor: doughnutBorder
         }
@@ -215,7 +217,7 @@ function renderCharts(data) {
       datasets: [
         {
           data: data.products.slice(0, 7).reverse().map((item) => item.units),
-          backgroundColor: "#168c83",
+          backgroundColor: isDark ? "#2dd4bf" : "#168c83",
           borderRadius: 2,
           barThickness: 14
         }
@@ -232,7 +234,7 @@ function renderCharts(data) {
         },
         y: {
           grid: { display: false },
-          ticks: { color: isDark ? "#e2e8f0" : "#17212b", font: { family: "Plus Jakarta Sans", size: 11, weight: 500 } }
+          ticks: { color: isDark ? "#f8fafc" : "#17212b", font: { family: "Plus Jakarta Sans", size: 11, weight: 600 } }
         }
       }
     }
@@ -249,11 +251,11 @@ function renderCharts(data) {
         {
           label: "Historical",
           data: [...data.monthly.map((item) => item.revenue), ...Array(data.forecast.length).fill(null)],
-          borderColor: "#e4572e",
-          backgroundColor: isDark ? "rgba(228,87,46,.14)" : "rgba(228,87,46,.08)",
+          borderColor: isDark ? "#ff7849" : "#e4572e",
+          backgroundColor: isDark ? "rgba(255, 120, 73, 0.16)" : "rgba(228,87,46,.08)",
           fill: true,
           tension: .35,
-          pointRadius: 3
+          pointRadius: 4
         },
         {
           label: "Forecast",
@@ -262,10 +264,10 @@ function renderCharts(data) {
             data.monthly.at(-1)?.revenue || 0,
             ...data.forecast.map((item) => item.revenue)
           ],
-          borderColor: "#e4572e",
+          borderColor: isDark ? "#fbbf24" : "#e7a93b",
           borderDash: [6, 5],
           tension: .35,
-          pointRadius: 3
+          pointRadius: 4
         }
       ]
     },
@@ -277,8 +279,9 @@ function renderCharts(data) {
 }
 
 function renderLists(data) {
+  const currentColors = getColors();
   document.querySelector("#category-list").innerHTML = data.categories.map((item, index) =>
-    `<div class="rank-row"><span><b style="color:${colors[index % colors.length]}">●</b> ${item.name}</span><b>${moneyShort(item.revenue)}</b></div>`
+    `<div class="rank-row"><span><b style="color:${currentColors[index % currentColors.length]}">●</b> ${item.name}</span><b>${moneyShort(item.revenue)}</b></div>`
   ).join("");
 
   const maxRegion = data.regions[0]?.revenue || 1;
