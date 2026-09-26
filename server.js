@@ -45,6 +45,9 @@ function parseCsv(text) {
 
 function toSale(row) {
   return {
+    orderId: row.Order_ID || "",
+    customerId: row.Customer_ID || "",
+    customerName: row.Customer_Name || "",
     date: row.Date,
     product: row.Product,
     category: row.Category,
@@ -54,6 +57,11 @@ function toSale(row) {
     revenue: Number(row.Total_Sales),
     profit: Number(row.Profit || Number(row.Total_Sales) * 0.3),
     discount: Number(row.Discount || 0),
+    salesperson: row.Salesperson || "",
+    paymentMethod: row.Payment_Method || "",
+    customerType: row.Customer_Type || "",
+    shippingCost: Number(row.Shipping_Cost || 0),
+    orderStatus: row.Order_Status || "",
   };
 }
 
@@ -121,10 +129,46 @@ function buildDashboard(sales, params) {
   );
   const revenue = sum(filtered, "revenue");
   const profit = sum(filtered, "profit");
+  const totalShipping = sum(filtered, "shippingCost");
   const monthly = groupMonthly(filtered);
   const categories = groupBy(filtered, "category");
   const regions = groupBy(filtered, "region");
   const products = groupBy(filtered, "product");
+  const salespersons = groupBy(filtered, "salesperson");
+
+  // Payment method breakdown
+  const paymentMap = new Map();
+  for (const s of filtered) {
+    const entry = paymentMap.get(s.paymentMethod) || { name: s.paymentMethod, revenue: 0, units: 0, count: 0 };
+    entry.revenue += s.revenue;
+    entry.units += s.units;
+    entry.count += 1;
+    paymentMap.set(s.paymentMethod, entry);
+  }
+  const paymentMethods = [...paymentMap.values()].sort((a, b) => b.revenue - a.revenue);
+
+  // Customer type breakdown
+  const custTypeMap = new Map();
+  for (const s of filtered) {
+    const entry = custTypeMap.get(s.customerType) || { name: s.customerType, revenue: 0, units: 0, profit: 0, count: 0 };
+    entry.revenue += s.revenue;
+    entry.units += s.units;
+    entry.profit += s.profit;
+    entry.count += 1;
+    custTypeMap.set(s.customerType, entry);
+  }
+  const customerTypes = [...custTypeMap.values()].sort((a, b) => b.revenue - a.revenue);
+
+  // Order status breakdown
+  const statusMap = new Map();
+  for (const s of filtered) {
+    statusMap.set(s.orderStatus, (statusMap.get(s.orderStatus) || 0) + 1);
+  }
+  const orderStatuses = [...statusMap.entries()].map(([status, count]) => ({ status, count })).sort((a, b) => b.count - a.count);
+
+  // Unique customers
+  const uniqueCustomers = new Set(filtered.map((s) => s.customerId)).size;
+
   const anomalies = monthly.length >= 3
     ? monthly.filter((month) => month.revenue > revenue / monthly.length * 1.5 || month.revenue < revenue / monthly.length * 0.5).map((month) => ({ ...month, reason: "Revenue moved notably from the period average" }))
     : [];
@@ -136,6 +180,10 @@ function buildDashboard(sales, params) {
       maxDate: sales.at(-1)?.date || "",
       regions: [...new Set(sales.map((sale) => sale.region))].sort(),
       categories: [...new Set(sales.map((sale) => sale.category))].sort(),
+      salespersons: [...new Set(sales.map((sale) => sale.salesperson))].filter(Boolean).sort(),
+      paymentMethods: [...new Set(sales.map((sale) => sale.paymentMethod))].filter(Boolean).sort(),
+      customerTypes: [...new Set(sales.map((sale) => sale.customerType))].filter(Boolean).sort(),
+      orderStatuses: [...new Set(sales.map((sale) => sale.orderStatus))].filter(Boolean).sort(),
     },
     metrics: {
       revenue,
@@ -146,6 +194,9 @@ function buildDashboard(sales, params) {
       avgOrder: filtered.length ? revenue / filtered.length : 0,
       topCategory: categories[0]?.name || "-",
       topRegion: regions[0]?.name || "-",
+      topSalesperson: salespersons[0]?.name || "-",
+      uniqueCustomers,
+      totalShipping,
       bestMonth: [...monthly].sort((a, b) => b.revenue - a.revenue)[0]?.month || "-",
       worstMonth: [...monthly].sort((a, b) => a.revenue - b.revenue)[0]?.month || "-",
       growth: monthly.length > 1 ? ((last.revenue - first.revenue) / first.revenue) * 100 : 0,
@@ -154,6 +205,10 @@ function buildDashboard(sales, params) {
     categories,
     regions,
     products: products.slice(0, 10),
+    salespersons,
+    paymentMethods,
+    customerTypes,
+    orderStatuses,
     anomalies,
     forecast: linearForecast(monthly, Math.min(12, Math.max(1, Number(params.periods) || 3))),
     rows: filtered,

@@ -23,26 +23,122 @@ from src.sales_analysis import (
 from src.sql_layer import create_sales_database, query_category_sales, query_monthly_sales
 
 
+# ---------------------------------------------------------------------------
+# Helper to build a minimal valid dataframe with all required columns
+# ---------------------------------------------------------------------------
+def _make_df(overrides=None, rows=None):
+    """Return a small valid sales dataframe with all required columns."""
+    base_rows = rows or [
+        {
+            "Order_ID": "ORD-00001",
+            "Customer_ID": "CUST-0001",
+            "Customer_Name": "Test User",
+            "Date": "2025-01-01",
+            "Product": "Laptop",
+            "Category": "Electronics",
+            "Region": "North",
+            "Units_Sold": 2,
+            "Unit_Price": 100,
+            "Total_Sales": 200,
+            "Salesperson": "Amit Patil",
+            "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular",
+            "Shipping_Cost": 50.0,
+            "Order_Status": "Delivered",
+        },
+        {
+            "Order_ID": "ORD-00002",
+            "Customer_ID": "CUST-0002",
+            "Customer_Name": "Jane Doe",
+            "Date": "2025-01-05",
+            "Product": "Mouse",
+            "Category": "Accessories",
+            "Region": "South",
+            "Units_Sold": 5,
+            "Unit_Price": 20,
+            "Total_Sales": 100,
+            "Salesperson": "Sunita Rao",
+            "Payment_Method": "UPI",
+            "Customer_Type": "Premium",
+            "Shipping_Cost": 30.0,
+            "Order_Status": "Shipped",
+        },
+    ]
+    df = pd.DataFrame(base_rows)
+    if overrides:
+        for key, value in overrides.items():
+            df[key] = value
+    return df
+
+
+# CSV header for file-based tests
+_CSV_HEADER = (
+    "Order_ID,Customer_ID,Customer_Name,Date,Product,Category,Region,"
+    "Units_Sold,Unit_Price,Total_Sales,Salesperson,Payment_Method,"
+    "Customer_Type,Shipping_Cost,Order_Status\n"
+)
+
+
+def _csv_row(
+    order_id="ORD-00001",
+    customer_id="CUST-0001",
+    customer_name="Test User",
+    date="2025-01-01",
+    product="Laptop",
+    category="Electronics",
+    region="North",
+    units=2,
+    price=100,
+    total=200,
+    salesperson="Amit Patil",
+    payment="Credit Card",
+    cust_type="Regular",
+    shipping=50.0,
+    status="Delivered",
+):
+    return (
+        f"{order_id},{customer_id},{customer_name},{date},{product},{category},"
+        f"{region},{units},{price},{total},{salesperson},{payment},"
+        f"{cust_type},{shipping},{status}\n"
+    )
+
+
 def test_load_sales_data_parses_dates(tmp_path: Path):
     csv_file = tmp_path / "sample.csv"
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
-        "2025-01-01,Laptop,Electronics,North,2,100,200\n"
-        "2025-01-05,Mouse,Accessories,South,5,20,100\n",
+        _CSV_HEADER
+        + _csv_row()
+        + _csv_row(
+            order_id="ORD-00002",
+            customer_id="CUST-0002",
+            customer_name="Jane Doe",
+            date="2025-01-05",
+            product="Mouse",
+            category="Accessories",
+            region="South",
+            units=5,
+            price=20,
+            total=100,
+            salesperson="Sunita Rao",
+            payment="UPI",
+            cust_type="Premium",
+            shipping=30,
+            status="Shipped",
+        ),
         encoding="utf-8",
     )
 
     df = load_sales_data(csv_file)
 
-    assert list(df.columns)[:7] == [
-        "Date",
-        "Product",
-        "Category",
-        "Region",
-        "Units_Sold",
-        "Unit_Price",
-        "Total_Sales",
-    ]
+    assert "Date" in df.columns
+    assert "Order_ID" in df.columns
+    assert "Customer_ID" in df.columns
+    assert "Customer_Name" in df.columns
+    assert "Salesperson" in df.columns
+    assert "Payment_Method" in df.columns
+    assert "Customer_Type" in df.columns
+    assert "Shipping_Cost" in df.columns
+    assert "Order_Status" in df.columns
     assert pd.api.types.is_datetime64_any_dtype(df["Date"])
 
 
@@ -60,7 +156,14 @@ def test_run_sales_pipeline_generates_summary():
 
     assert "total_revenue" in summary
     assert "top_category" in summary
+    assert "top_salesperson" in summary
+    assert "unique_customers" in summary
+    assert "salesperson_sales" in summary
+    assert "payment_breakdown" in summary
+    assert "customer_type_sales" in summary
+    assert "order_status_counts" in summary
     assert summary["total_units"] > 0
+    assert summary["unique_customers"] > 0
 
 
 def test_load_sales_data_rejects_empty_file(tmp_path: Path):
@@ -78,8 +181,8 @@ def test_load_sales_data_rejects_empty_file(tmp_path: Path):
 def test_load_sales_data_rejects_invalid_dates(tmp_path: Path):
     csv_file = tmp_path / "invalid_dates.csv"
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
-        "not-a-date,Laptop,Electronics,North,2,100,200\n",
+        _CSV_HEADER
+        + _csv_row(date="not-a-date"),
         encoding="utf-8",
     )
 
@@ -90,8 +193,8 @@ def test_load_sales_data_rejects_invalid_dates(tmp_path: Path):
 def test_load_sales_data_rejects_invalid_numeric_values(tmp_path: Path):
     csv_file = tmp_path / "invalid_numbers.csv"
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
-        "2025-01-01,Laptop,Electronics,North,invalid,100,200\n",
+        _CSV_HEADER
+        + _csv_row(units="invalid"),
         encoding="utf-8",
     )
 
@@ -101,9 +204,9 @@ def test_load_sales_data_rejects_invalid_numeric_values(tmp_path: Path):
 
 def test_load_sales_data_deduplicates_exact_rows(tmp_path: Path):
     csv_file = tmp_path / "duplicates.csv"
-    row = "2025-01-01,Laptop,Electronics,North,2,100,200\n"
+    row = _csv_row()
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n" + row + row,
+        _CSV_HEADER + row + row,
         encoding="utf-8",
     )
 
@@ -113,8 +216,8 @@ def test_load_sales_data_deduplicates_exact_rows(tmp_path: Path):
 def test_load_sales_data_rejects_negative_values(tmp_path: Path):
     csv_file = tmp_path / "negative.csv"
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
-        "2025-01-01,Laptop,Electronics,North,-2,100,200\n",
+        _CSV_HEADER
+        + _csv_row(units=-2),
         encoding="utf-8",
     )
 
@@ -125,8 +228,8 @@ def test_load_sales_data_rejects_negative_values(tmp_path: Path):
 def test_load_sales_data_rejects_blank_dimension_values(tmp_path: Path):
     csv_file = tmp_path / "blank_product.csv"
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
-        "2025-01-01, ,Electronics,North,2,100,200\n",
+        _CSV_HEADER
+        + _csv_row(product=" "),
         encoding="utf-8",
     )
 
@@ -146,9 +249,15 @@ def test_date_ranges_reject_inverted_bounds():
 
 def test_load_sales_data_rejects_invalid_optional_numeric_values(tmp_path: Path):
     csv_file = tmp_path / "invalid_optional.csv"
+    header = (
+        "Order_ID,Customer_ID,Customer_Name,Date,Product,Category,Region,"
+        "Units_Sold,Unit_Price,Total_Sales,Discount,Salesperson,Payment_Method,"
+        "Customer_Type,Shipping_Cost,Order_Status\n"
+    )
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales,Discount\n"
-        "2025-01-01,Laptop,Electronics,North,2,100,200,unknown\n",
+        header
+        + "ORD-00001,CUST-0001,Test User,2025-01-01,Laptop,Electronics,North,"
+        "2,100,200,unknown,Amit Patil,Credit Card,Regular,50,Delivered\n",
         encoding="utf-8",
     )
 
@@ -159,8 +268,8 @@ def test_load_sales_data_rejects_invalid_optional_numeric_values(tmp_path: Path)
 def test_load_sales_data_rejects_fractional_units(tmp_path: Path):
     csv_file = tmp_path / "fractional_units.csv"
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales\n"
-        "2025-01-01,Laptop,Electronics,North,2.5,100,250\n",
+        _CSV_HEADER
+        + _csv_row(units=2.5, total=250),
         encoding="utf-8",
     )
 
@@ -170,9 +279,15 @@ def test_load_sales_data_rejects_fractional_units(tmp_path: Path):
 
 def test_load_sales_data_rejects_out_of_range_discount(tmp_path: Path):
     csv_file = tmp_path / "invalid_discount.csv"
+    header = (
+        "Order_ID,Customer_ID,Customer_Name,Date,Product,Category,Region,"
+        "Units_Sold,Unit_Price,Total_Sales,Discount,Salesperson,Payment_Method,"
+        "Customer_Type,Shipping_Cost,Order_Status\n"
+    )
     csv_file.write_text(
-        "Date,Product,Category,Region,Units_Sold,Unit_Price,Total_Sales,Discount\n"
-        "2025-01-01,Laptop,Electronics,North,2,100,200,101\n",
+        header
+        + "ORD-00001,CUST-0001,Test User,2025-01-01,Laptop,Electronics,North,"
+        "2,100,200,101,Amit Patil,Credit Card,Regular,50,Delivered\n",
         encoding="utf-8",
     )
 
@@ -184,22 +299,37 @@ def test_source_data_includes_profit_analysis_columns():
     df = load_sales_data(DATA_PATH)
 
     assert {"Cost_Price", "Profit", "Profit_Margin", "Discount"}.issubset(df.columns)
+    assert {"Order_ID", "Customer_ID", "Customer_Name", "Salesperson",
+            "Payment_Method", "Customer_Type", "Shipping_Cost", "Order_Status"}.issubset(df.columns)
     assert df.loc[0, "Profit"] == df.loc[0, "Total_Sales"] - (df.loc[0, "Cost_Price"] * df.loc[0, "Units_Sold"])
     assert df.loc[0, "Profit_Margin"] == 30
 
 
 def test_summarize_sales_calculates_expected_values():
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-02-01"]),
-            "Product": ["Laptop", "Laptop", "Mouse"],
-            "Category": ["Electronics", "Electronics", "Accessories"],
-            "Region": ["North", "South", "North"],
-            "Units_Sold": [2, 3, 5],
-            "Unit_Price": [100, 100, 20],
-            "Total_Sales": [200, 300, 100],
-        }
-    )
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-01-01", "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+        {
+            "Order_ID": "ORD-00002", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-01-02", "Product": "Laptop", "Category": "Electronics",
+            "Region": "South", "Units_Sold": 3, "Unit_Price": 100, "Total_Sales": 300,
+            "Salesperson": "Sunita Rao", "Payment_Method": "UPI",
+            "Customer_Type": "Premium", "Shipping_Cost": 60, "Order_Status": "Shipped",
+        },
+        {
+            "Order_ID": "ORD-00003", "Customer_ID": "CUST-0002", "Customer_Name": "Bob",
+            "Date": "2025-02-01", "Product": "Mouse", "Category": "Accessories",
+            "Region": "North", "Units_Sold": 5, "Unit_Price": 20, "Total_Sales": 100,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 30, "Order_Status": "Delivered",
+        },
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
 
     summary = summarize_sales(df)
 
@@ -209,6 +339,8 @@ def test_summarize_sales_calculates_expected_values():
     assert summary["top_category"] == "Electronics"
     assert summary["top_region"] == "North"
     assert summary["top_product"] == "Laptop"
+    assert summary["unique_customers"] == 2
+    assert summary["top_salesperson"] == "Amit Patil"
     assert list(summary["top_products"]["Product"]) == ["Laptop", "Mouse"]
     assert list(summary["monthly_sales"]["Units_Sold"]) == [5, 5]
     assert summary["total_profit"] == 180
@@ -216,6 +348,10 @@ def test_summarize_sales_calculates_expected_values():
     assert summary["best_month"] == "2025-01"
     assert summary["worst_month"] == "2025-02"
     assert summary["category_sales"]["Contribution_%"].sum() == 100
+    assert not summary["salesperson_sales"].empty
+    assert not summary["payment_breakdown"].empty
+    assert not summary["customer_type_sales"].empty
+    assert not summary["order_status_counts"].empty
     insights = generate_business_insights(summary)
     assert insights[0] == "Electronics generated the highest revenue."
     assert insights[1] == "North region contributed the most sales."
@@ -224,17 +360,23 @@ def test_summarize_sales_calculates_expected_values():
 
 
 def test_summarize_sales_includes_months_without_rows():
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-01", "2025-03-01"]),
-            "Product": ["Laptop", "Mouse"],
-            "Category": ["Electronics", "Accessories"],
-            "Region": ["North", "South"],
-            "Units_Sold": [2, 3],
-            "Unit_Price": [100, 20],
-            "Total_Sales": [200, 60],
-        }
-    )
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-01-01", "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+        {
+            "Order_ID": "ORD-00002", "Customer_ID": "CUST-0002", "Customer_Name": "Bob",
+            "Date": "2025-03-01", "Product": "Mouse", "Category": "Accessories",
+            "Region": "South", "Units_Sold": 3, "Unit_Price": 20, "Total_Sales": 60,
+            "Salesperson": "Sunita Rao", "Payment_Method": "UPI",
+            "Customer_Type": "Premium", "Shipping_Cost": 30, "Order_Status": "Shipped",
+        },
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
 
     monthly = summarize_sales(df)["monthly_sales"]
 
@@ -244,17 +386,16 @@ def test_summarize_sales_includes_months_without_rows():
 
 
 def test_summarize_sales_handles_zero_revenue():
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-01"]),
-            "Product": ["Sample"],
-            "Category": ["Other"],
-            "Region": ["North"],
-            "Units_Sold": [0],
-            "Unit_Price": [0],
-            "Total_Sales": [0],
-        }
-    )
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-01-01", "Product": "Sample", "Category": "Other",
+            "Region": "North", "Units_Sold": 0, "Unit_Price": 0, "Total_Sales": 0,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 0, "Order_Status": "Delivered",
+        },
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
 
     summary = summarize_sales(df)
 
@@ -269,17 +410,21 @@ def test_summarize_sales_rejects_empty_data():
 
 
 def test_forecast_sales_returns_future_non_negative_predictions():
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-01", "2025-02-01", "2025-03-01"]),
-            "Product": ["Laptop", "Mouse", "Laptop"],
-            "Category": ["Electronics", "Accessories", "Electronics"],
-            "Region": ["North", "South", "North"],
-            "Units_Sold": [2, 4, 6],
-            "Unit_Price": [100, 20, 100],
-            "Total_Sales": [200, 80, 600],
+            "Order_ID": f"ORD-{i:05d}", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": date, "Product": prod, "Category": cat,
+            "Region": reg, "Units_Sold": units, "Unit_Price": price, "Total_Sales": total,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
         }
-    )
+        for i, (date, prod, cat, reg, units, price, total) in enumerate([
+            ("2025-01-01", "Laptop", "Electronics", "North", 2, 100, 200),
+            ("2025-02-01", "Mouse", "Accessories", "South", 4, 20, 80),
+            ("2025-03-01", "Laptop", "Electronics", "North", 6, 100, 600),
+        ], start=1)
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
 
     features = engineer_monthly_features(df)
     forecast = forecast_sales(df, periods=2)
@@ -290,17 +435,16 @@ def test_forecast_sales_returns_future_non_negative_predictions():
 
 
 def test_forecast_sales_rejects_invalid_horizon():
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-01"]),
-            "Product": ["Laptop"],
-            "Category": ["Electronics"],
-            "Region": ["North"],
-            "Units_Sold": [2],
-            "Unit_Price": [100],
-            "Total_Sales": [200],
-        }
-    )
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-01-01", "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
 
     try:
         forecast_sales(df, periods=0)
@@ -335,17 +479,16 @@ def test_split_time_series_rejects_holdout_without_training_rows():
 
 
 def test_export_power_bi_data_writes_model_ready_columns(tmp_path, monkeypatch):
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-15"]),
-            "Product": ["Laptop"],
-            "Category": ["Electronics"],
-            "Region": ["North"],
-            "Units_Sold": [2],
-            "Unit_Price": [100],
-            "Total_Sales": [200],
-        }
-    )
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-01-15", "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
     monkeypatch.setattr("src.sales_analysis.OUTPUT_DIR", tmp_path)
 
     export_power_bi_data(df)
@@ -354,22 +497,34 @@ def test_export_power_bi_data_writes_model_ready_columns(tmp_path, monkeypatch):
     assert {"MonthStart", "Year", "MonthNumber", "MonthName", "Estimated_Profit"}.issubset(
         exported.columns
     )
+    assert {"Order_ID", "Customer_ID", "Customer_Name", "Salesperson",
+            "Payment_Method", "Customer_Type", "Shipping_Cost", "Order_Status"}.issubset(
+        exported.columns
+    )
     assert exported.loc[0, "MonthStart"].startswith("2025-01-01")
     assert exported.loc[0, "Estimated_Profit"] == 60
+    assert exported.loc[0, "Order_ID"] == "ORD-00001"
+    assert exported.loc[0, "Salesperson"] == "Amit Patil"
 
 
 def test_sql_layer_replaces_rows_and_supports_analytics_queries(tmp_path):
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-02-01", "2025-01-15"]),
-            "Product": ["Mouse", "Laptop"],
-            "Category": ["Accessories", "Electronics"],
-            "Region": ["South", "North"],
-            "Units_Sold": [5, 2],
-            "Unit_Price": [20, 100],
-            "Total_Sales": [100, 200],
-        }
-    )
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-02-01", "Product": "Mouse", "Category": "Accessories",
+            "Region": "South", "Units_Sold": 5, "Unit_Price": 20, "Total_Sales": 100,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 30, "Order_Status": "Delivered",
+        },
+        {
+            "Order_ID": "ORD-00002", "Customer_ID": "CUST-0002", "Customer_Name": "Bob",
+            "Date": "2025-01-15", "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200,
+            "Salesperson": "Sunita Rao", "Payment_Method": "UPI",
+            "Customer_Type": "Premium", "Shipping_Cost": 50, "Order_Status": "Shipped",
+        },
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
     database_path = tmp_path / "sales.db"
 
     create_sales_database(df, database_path)
@@ -383,17 +538,22 @@ def test_sql_layer_replaces_rows_and_supports_analytics_queries(tmp_path):
 
 
 def test_period_comparison_and_anomaly_outputs():
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03", "2025-02-01"]),
-            "Product": ["Laptop", "Mouse", "Laptop", "Laptop"],
-            "Category": ["Electronics", "Accessories", "Electronics", "Electronics"],
-            "Region": ["North", "North", "North", "North"],
-            "Units_Sold": [2, 5, 10, 10],
-            "Unit_Price": [100, 20, 100, 100],
-            "Total_Sales": [200, 100, 1000, 1000],
+            "Order_ID": f"ORD-{i:05d}", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": date, "Product": prod, "Category": cat,
+            "Region": "North", "Units_Sold": units, "Unit_Price": price, "Total_Sales": total,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
         }
-    )
+        for i, (date, prod, cat, units, price, total) in enumerate([
+            ("2025-01-01", "Laptop", "Electronics", 2, 100, 200),
+            ("2025-01-02", "Mouse", "Accessories", 5, 20, 100),
+            ("2025-01-03", "Laptop", "Electronics", 10, 100, 1000),
+            ("2025-02-01", "Laptop", "Electronics", 10, 100, 1000),
+        ], start=1)
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
 
     selected = filter_sales_data(df, "2025-02-01", "2025-02-28", ["North"], ["Electronics"])
     comparison = compare_periods(df, "2025-01-02", "2025-01-03")
@@ -407,7 +567,9 @@ def test_period_comparison_and_anomaly_outputs():
 
 
 def test_add_profit_metrics_validates_cost_ratio():
-    df = pd.DataFrame({"Total_Sales": [100], "Unit_Price": [100], "Units_Sold": [1]})
+    df = pd.DataFrame({
+        "Total_Sales": [100], "Unit_Price": [100], "Units_Sold": [1],
+    })
 
     enriched = add_profit_metrics(df, cost_ratio=0.6)
 
@@ -422,17 +584,23 @@ def test_add_profit_metrics_validates_cost_ratio():
 
 
 def test_summarize_sales_handles_zero_previous_month():
-    df = pd.DataFrame(
+    df = _make_df(rows=[
         {
-            "Date": pd.to_datetime(["2025-01-01", "2025-02-01"]),
-            "Product": ["Laptop", "Laptop"],
-            "Category": ["Electronics", "Electronics"],
-            "Region": ["North", "North"],
-            "Units_Sold": [0, 2],
-            "Unit_Price": [100, 100],
-            "Total_Sales": [0, 200],
-        }
-    )
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": "2025-01-01", "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 0, "Unit_Price": 100, "Total_Sales": 0,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+        {
+            "Order_ID": "ORD-00002", "Customer_ID": "CUST-0002", "Customer_Name": "Bob",
+            "Date": "2025-02-01", "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+    ])
+    df["Date"] = pd.to_datetime(df["Date"])
 
     summary = summarize_sales(df)
 

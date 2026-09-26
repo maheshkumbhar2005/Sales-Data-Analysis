@@ -16,6 +16,9 @@ from sklearn.ensemble import IsolationForest
 DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "sales_data.csv"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 REQUIRED_COLUMNS = {
+    "Order_ID",
+    "Customer_ID",
+    "Customer_Name",
     "Date",
     "Product",
     "Category",
@@ -23,10 +26,28 @@ REQUIRED_COLUMNS = {
     "Units_Sold",
     "Unit_Price",
     "Total_Sales",
+    "Salesperson",
+    "Payment_Method",
+    "Customer_Type",
+    "Order_Status",
 }
-REQUIRED_TEXT_COLUMNS = {"Product", "Category", "Region"}
+REQUIRED_TEXT_COLUMNS = {
+    "Order_ID",
+    "Customer_ID",
+    "Customer_Name",
+    "Product",
+    "Category",
+    "Region",
+    "Salesperson",
+    "Payment_Method",
+    "Customer_Type",
+    "Order_Status",
+}
 REQUIRED_NUMERIC_COLUMNS = {"Units_Sold", "Unit_Price", "Total_Sales"}
-OPTIONAL_NUMERIC_COLUMNS = {"Cost_Price", "Profit", "Profit_Margin", "Discount"}
+OPTIONAL_NUMERIC_COLUMNS = {"Cost_Price", "Profit", "Profit_Margin", "Discount", "Shipping_Cost"}
+VALID_ORDER_STATUSES = {"Delivered", "Shipped", "Processing", "Returned", "Cancelled"}
+VALID_PAYMENT_METHODS = {"Credit Card", "Debit Card", "UPI", "Net Banking", "Cash on Delivery"}
+VALID_CUSTOMER_TYPES = {"Regular", "Premium", "Enterprise"}
 DEFAULT_COST_RATIO = 0.70
 NON_NEGATIVE_COLUMNS = {
     "Units_Sold",
@@ -36,10 +57,8 @@ NON_NEGATIVE_COLUMNS = {
     "Profit",
     "Profit_Margin",
     "Discount",
+    "Shipping_Cost",
 }
-
-
-
 def load_sales_data(path: Path) -> pd.DataFrame:
     try:
         df = pd.read_csv(path)
@@ -109,6 +128,28 @@ def load_sales_data(path: Path) -> pd.DataFrame:
         raise ValueError("Sales CSV contains Discount values outside 0 to 100%.")
     if "Profit_Margin" in df and not df["Profit_Margin"].between(-100, 100).all():
         raise ValueError("Sales CSV contains Profit_Margin values outside -100 to 100%.")
+
+    if "Order_Status" in df:
+        invalid_statuses = set(df["Order_Status"].unique()) - VALID_ORDER_STATUSES
+        if invalid_statuses:
+            raise ValueError(
+                "Sales CSV contains invalid Order_Status values: "
+                + ", ".join(sorted(invalid_statuses))
+            )
+    if "Payment_Method" in df:
+        invalid_payments = set(df["Payment_Method"].unique()) - VALID_PAYMENT_METHODS
+        if invalid_payments:
+            raise ValueError(
+                "Sales CSV contains invalid Payment_Method values: "
+                + ", ".join(sorted(invalid_payments))
+            )
+    if "Customer_Type" in df:
+        invalid_types = set(df["Customer_Type"].unique()) - VALID_CUSTOMER_TYPES
+        if invalid_types:
+            raise ValueError(
+                "Sales CSV contains invalid Customer_Type values: "
+                + ", ".join(sorted(invalid_types))
+            )
 
     df["Month"] = df["Date"].dt.to_period("M").astype(str)
     return df
@@ -180,6 +221,28 @@ def validate_sales_data(df: pd.DataFrame) -> pd.DataFrame:
     if "Profit_Margin" in df and not df["Profit_Margin"].between(-100, 100).all():
         raise ValueError("Sales CSV contains Profit_Margin values outside -100 to 100%.")
 
+    if "Order_Status" in df:
+        invalid_statuses = set(df["Order_Status"].unique()) - VALID_ORDER_STATUSES
+        if invalid_statuses:
+            raise ValueError(
+                "Sales CSV contains invalid Order_Status values: "
+                + ", ".join(sorted(invalid_statuses))
+            )
+    if "Payment_Method" in df:
+        invalid_payments = set(df["Payment_Method"].unique()) - VALID_PAYMENT_METHODS
+        if invalid_payments:
+            raise ValueError(
+                "Sales CSV contains invalid Payment_Method values: "
+                + ", ".join(sorted(invalid_payments))
+            )
+    if "Customer_Type" in df:
+        invalid_types = set(df["Customer_Type"].unique()) - VALID_CUSTOMER_TYPES
+        if invalid_types:
+            raise ValueError(
+                "Sales CSV contains invalid Customer_Type values: "
+                + ", ".join(sorted(invalid_types))
+            )
+
     df["Month"] = df["Date"].dt.to_period("M").astype(str)
     return df
 
@@ -239,6 +302,8 @@ def add_profit_metrics(df: pd.DataFrame, cost_ratio: float = DEFAULT_COST_RATIO)
         enriched["Profit"] = enriched["Total_Sales"] - enriched["Cost_Price"] * enriched["Units_Sold"]
     if "Discount" not in enriched:
         enriched["Discount"] = 0.0
+    if "Shipping_Cost" not in enriched:
+        enriched["Shipping_Cost"] = 0.0
     enriched["Profit_Margin"] = (
         enriched["Profit"].div(enriched["Total_Sales"])
         .mul(100)
@@ -351,6 +416,7 @@ def summarize_sales(df: pd.DataFrame) -> dict:
 
     total_revenue = df["Total_Sales"].sum()
     total_units = df["Units_Sold"].sum()
+    total_shipping = df["Shipping_Cost"].sum() if "Shipping_Cost" in df else 0.0
     avg_order_value = df["Total_Sales"].mean()
     avg_price_per_unit = df["Unit_Price"].mean()
     top_category = df.groupby("Category")["Total_Sales"].sum().idxmax()
@@ -361,6 +427,38 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         .sort_values("Units_Sold", ascending=False)
     )
     top_product = product_sales.iloc[0]["Product"]
+
+    # Salesperson performance
+    salesperson_sales = (
+        df.groupby("Salesperson", as_index=False)[["Total_Sales", "Units_Sold", "Estimated_Profit"]]
+        .sum()
+        .sort_values("Total_Sales", ascending=False)
+    ) if "Salesperson" in df else pd.DataFrame(columns=["Salesperson", "Total_Sales", "Units_Sold", "Estimated_Profit"])
+    top_salesperson = salesperson_sales.iloc[0]["Salesperson"] if not salesperson_sales.empty else "-"
+
+    # Payment method breakdown
+    payment_breakdown = (
+        df.groupby("Payment_Method", as_index=False)[["Total_Sales", "Units_Sold"]]
+        .sum()
+        .sort_values("Total_Sales", ascending=False)
+    ) if "Payment_Method" in df else pd.DataFrame(columns=["Payment_Method", "Total_Sales", "Units_Sold"])
+
+    # Customer type breakdown
+    customer_type_sales = (
+        df.groupby("Customer_Type", as_index=False)[["Total_Sales", "Units_Sold", "Estimated_Profit"]]
+        .sum()
+        .sort_values("Total_Sales", ascending=False)
+    ) if "Customer_Type" in df else pd.DataFrame(columns=["Customer_Type", "Total_Sales", "Units_Sold", "Estimated_Profit"])
+
+    # Order status counts
+    order_status_counts = (
+        df["Order_Status"].value_counts().reset_index()
+    ) if "Order_Status" in df else pd.DataFrame(columns=["Order_Status", "count"])
+    if not order_status_counts.empty:
+        order_status_counts.columns = ["Order_Status", "Count"]
+
+    # Unique customers
+    unique_customers = int(df["Customer_ID"].nunique()) if "Customer_ID" in df else 0
 
     category_sales = df.groupby("Category", as_index=False)[["Total_Sales", "Estimated_Profit"]].sum().sort_values("Total_Sales", ascending=False)
     category_sales["Contribution_%"] = category_sales["Total_Sales"].div(total_revenue).mul(100) if total_revenue else 0.0
@@ -395,6 +493,7 @@ def summarize_sales(df: pd.DataFrame) -> dict:
     return {
         "total_revenue": total_revenue,
         "total_units": total_units,
+        "total_shipping": total_shipping,
         "avg_order_value": avg_order_value,
         "avg_price_per_unit": avg_price_per_unit,
         "total_profit": total_profit,
@@ -402,8 +501,14 @@ def summarize_sales(df: pd.DataFrame) -> dict:
         "top_category": top_category,
         "top_region": top_region,
         "top_product": top_product,
+        "top_salesperson": top_salesperson,
+        "unique_customers": unique_customers,
         "product_sales": product_sales,
         "top_products": product_sales.head(10),
+        "salesperson_sales": salesperson_sales,
+        "payment_breakdown": payment_breakdown,
+        "customer_type_sales": customer_type_sales,
+        "order_status_counts": order_status_counts,
         "category_sales": category_sales,
         "region_sales": region_sales,
         "monthly_sales": monthly_sales,
@@ -514,10 +619,15 @@ def export_summary(summary: dict) -> None:
     summary["region_sales"].to_csv(OUTPUT_DIR / "region_sales.csv", index=False)
     summary["monthly_sales"].to_csv(OUTPUT_DIR / "monthly_sales.csv", index=False)
     summary["anomalies"].to_csv(OUTPUT_DIR / "sales_anomalies.csv", index=False)
+    summary["salesperson_sales"].to_csv(OUTPUT_DIR / "salesperson_sales.csv", index=False)
+    summary["payment_breakdown"].to_csv(OUTPUT_DIR / "payment_breakdown.csv", index=False)
+    summary["customer_type_sales"].to_csv(OUTPUT_DIR / "customer_type_sales.csv", index=False)
+    summary["order_status_counts"].to_csv(OUTPUT_DIR / "order_status_counts.csv", index=False)
 
     metrics = {
         "total_revenue": float(summary["total_revenue"]),
         "total_units": int(summary["total_units"]),
+        "total_shipping": float(summary["total_shipping"]),
         "avg_order_value": float(summary["avg_order_value"]),
         "avg_price_per_unit": float(summary["avg_price_per_unit"]),
         "total_profit": float(summary["total_profit"]),
@@ -525,6 +635,8 @@ def export_summary(summary: dict) -> None:
         "top_category": summary["top_category"],
         "top_region": summary["top_region"],
         "top_product": summary["top_product"],
+        "top_salesperson": summary["top_salesperson"],
+        "unique_customers": summary["unique_customers"],
         "best_month": summary["best_month"],
         "worst_month": summary["worst_month"],
     }
@@ -540,6 +652,9 @@ def export_power_bi_data(df: pd.DataFrame) -> None:
     power_bi_data["MonthNumber"] = power_bi_data["Date"].dt.month
     power_bi_data["MonthName"] = power_bi_data["Date"].dt.month_name()
     columns = [
+        "Order_ID",
+        "Customer_ID",
+        "Customer_Name",
         "Date",
         "MonthStart",
         "Year",
@@ -556,8 +671,15 @@ def export_power_bi_data(df: pd.DataFrame) -> None:
         "Estimated_Profit",
         "Estimated_Margin_%",
         "Discount",
+        "Salesperson",
+        "Payment_Method",
+        "Customer_Type",
+        "Shipping_Cost",
+        "Order_Status",
     ]
-    power_bi_data[columns].to_csv(OUTPUT_DIR / "powerbi_sales_data.csv", index=False)
+    # Only include columns that exist in the data
+    available_columns = [c for c in columns if c in power_bi_data.columns]
+    power_bi_data[available_columns].to_csv(OUTPUT_DIR / "powerbi_sales_data.csv", index=False)
 
 
 def create_visuals(df: pd.DataFrame, summary: dict) -> None:
@@ -638,16 +760,26 @@ def print_report(summary: dict) -> None:
     print("=" * 28)
     print(f"Total Revenue: ${summary['total_revenue']:,.2f}")
     print(f"Total Units Sold: {summary['total_units']:,}")
+    print(f"Total Shipping Cost: ${summary['total_shipping']:,.2f}")
     print(f"Average Order Value: ${summary['avg_order_value']:,.2f}")
     print(f"Average Unit Price: ${summary['avg_price_per_unit']:,.2f}")
     print(f"Top Category: {summary['top_category']}")
     print(f"Top Region: {summary['top_region']}")
     print(f"Top Product by Units: {summary['top_product']}")
+    print(f"Top Salesperson: {summary['top_salesperson']}")
+    print(f"Unique Customers: {summary['unique_customers']}")
     print("\nMonthly Sales Trend:")
     print(summary["monthly_sales"].to_string(index=False))
 
     best_moM = summary["monthly_sales"].loc[summary["monthly_sales"]["MoM_Growth_%"].idxmax()]
     print(f"\nBest month-over-month growth: {best_moM['Month']} ({best_moM['MoM_Growth_%']:.2f}%)")
+
+    if not summary["salesperson_sales"].empty:
+        print("\nSalesperson Performance:")
+        print(summary["salesperson_sales"].to_string(index=False))
+    if not summary["order_status_counts"].empty:
+        print("\nOrder Status Distribution:")
+        print(summary["order_status_counts"].to_string(index=False))
 
 
 def main() -> None:

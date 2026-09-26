@@ -1,7 +1,9 @@
 const charts = {};
-const lightColors = ["#168c83", "#e4572e", "#e7a93b", "#4e79a7", "#7e8791"];
-const darkColors = ["#2dd4bf", "#ff7849", "#fbbf24", "#60a5fa", "#c084fc"];
+const lightColors = ["#168c83", "#e4572e", "#e7a93b", "#4e79a7", "#7e8791", "#af4bce", "#3c9e6d", "#c0392b"];
+const darkColors = ["#2dd4bf", "#ff7849", "#fbbf24", "#60a5fa", "#c084fc", "#e879f9", "#34d399", "#fb7185"];
 const getColors = () => (getTheme() === "dark" ? darkColors : lightColors);
+const statusColors = { Delivered: "#22c55e", Shipped: "#3b82f6", Processing: "#eab308", Returned: "#f97316", Cancelled: "#ef4444" };
+const statusColorsDark = { Delivered: "#34d399", Shipped: "#60a5fa", Processing: "#fbbf24", Returned: "#fb923c", Cancelled: "#fb7185" };
 const USD_TO_INR = 83;
 const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -276,6 +278,87 @@ function renderCharts(data) {
       plugins: { ...defaults.plugins, tooltip: getMoneyTooltip() }
     }
   });
+
+  // Payment method doughnut
+  if (data.paymentMethods && data.paymentMethods.length) {
+    destroyChart("payment");
+    charts.payment = new Chart(document.querySelector("#payment-chart"), {
+      type: "doughnut",
+      data: {
+        labels: data.paymentMethods.map((item) => item.name),
+        datasets: [{
+          data: data.paymentMethods.map((item) => item.revenue),
+          backgroundColor: getColors(),
+          borderWidth: 3,
+          borderColor: doughnutBorder
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "70%",
+        plugins: { legend: { display: false }, tooltip: getMoneyTooltip() }
+      }
+    });
+  }
+
+  // Customer type doughnut
+  if (data.customerTypes && data.customerTypes.length) {
+    destroyChart("customerType");
+    charts.customerType = new Chart(document.querySelector("#customer-type-chart"), {
+      type: "doughnut",
+      data: {
+        labels: data.customerTypes.map((item) => item.name),
+        datasets: [{
+          data: data.customerTypes.map((item) => item.revenue),
+          backgroundColor: getColors().slice(2),
+          borderWidth: 3,
+          borderColor: doughnutBorder
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "70%",
+        plugins: { legend: { display: false }, tooltip: getMoneyTooltip() }
+      }
+    });
+  }
+
+  // Order status bar chart
+  if (data.orderStatuses && data.orderStatuses.length) {
+    const sColors = isDark ? statusColorsDark : statusColors;
+    destroyChart("status");
+    charts.status = new Chart(document.querySelector("#status-chart"), {
+      type: "bar",
+      data: {
+        labels: data.orderStatuses.map((item) => item.status),
+        datasets: [{
+          data: data.orderStatuses.map((item) => item.count),
+          backgroundColor: data.orderStatuses.map((item) => sColors[item.status] || (isDark ? "#60a5fa" : "#4e79a7")),
+          borderRadius: 4,
+          barPercentage: 0.6
+        }]
+      },
+      options: {
+        ...defaults,
+        plugins: {
+          ...defaults.plugins,
+          tooltip: {
+            ...getMoneyTooltip(),
+            callbacks: { label: (context) => `${context.raw} orders` }
+          }
+        },
+        scales: {
+          ...defaults.scales,
+          y: {
+            ...defaults.scales.y,
+            ticks: { ...defaults.scales.y.ticks, callback: (value) => value }
+          }
+        }
+      }
+    });
+  }
 }
 
 function renderLists(data) {
@@ -289,6 +372,38 @@ function renderLists(data) {
     `<div class="region-row"><span>${item.name}</span><div class="region-bar"><i style="width:${item.revenue / maxRegion * 100}%"></i></div><b>${moneyShort(item.revenue)}</b></div>`
   ).join("");
 
+  // Salesperson performance list
+  if (data.salespersons && data.salespersons.length) {
+    const maxSP = data.salespersons[0]?.revenue || 1;
+    document.querySelector("#salesperson-list").innerHTML = data.salespersons.map((item, index) =>
+      `<div class="rank-row"><span><b style="color:${currentColors[index % currentColors.length]}">●</b> ${item.name}</span><b>${moneyShort(item.revenue)}</b></div>`
+    ).join("");
+  }
+
+  // Payment method list
+  if (data.paymentMethods && data.paymentMethods.length) {
+    document.querySelector("#payment-list").innerHTML = data.paymentMethods.map((item, index) =>
+      `<div class="rank-row"><span><b style="color:${currentColors[index % currentColors.length]}">●</b> ${item.name}</span><b>${moneyShort(item.revenue)}</b></div>`
+    ).join("");
+  }
+
+  // Customer type list
+  if (data.customerTypes && data.customerTypes.length) {
+    document.querySelector("#customer-type-list").innerHTML = data.customerTypes.map((item, index) =>
+      `<div class="rank-row"><span><b style="color:${currentColors[index % currentColors.length]}">●</b> ${item.name}</span><b>${moneyShort(item.revenue)}</b></div>`
+    ).join("");
+  }
+
+  // Order status list
+  if (data.orderStatuses && data.orderStatuses.length) {
+    const maxStatus = data.orderStatuses[0]?.count || 1;
+    const isDark = getTheme() === "dark";
+    const sColors = isDark ? statusColorsDark : statusColors;
+    document.querySelector("#status-list").innerHTML = data.orderStatuses.map((item) =>
+      `<div class="region-row"><span>${item.status}</span><div class="region-bar"><i style="width:${item.count / maxStatus * 100}%;background:${sColors[item.status] || 'var(--teal)'}"></i></div><b>${number.format(item.count)}</b></div>`
+    ).join("");
+  }
+
   document.querySelector("#insights").innerHTML = [
     `${data.metrics.topCategory} generated the highest revenue.`,
     `${data.metrics.topRegion} region contributed the most sales.`,
@@ -296,8 +411,14 @@ function renderLists(data) {
       ? `Revenue grew ${data.metrics.growth.toFixed(1)}% across the selected period.`
       : `Revenue fell ${Math.abs(data.metrics.growth).toFixed(1)}% across the selected period.`,
     `${data.products[0]?.name || "No product"} leads by units sold.`,
-    `${dateLabel(data.metrics.bestMonth)} was the strongest month.`
-  ].map((text) => `<div class="insight">${text}</div>`).join("");
+    `${dateLabel(data.metrics.bestMonth)} was the strongest month.`,
+    data.metrics.topSalesperson && data.metrics.topSalesperson !== "-"
+      ? `${data.metrics.topSalesperson} is the top-performing salesperson.`
+      : null,
+    data.metrics.uniqueCustomers
+      ? `${number.format(data.metrics.uniqueCustomers)} unique customers placed orders.`
+      : null,
+  ].filter(Boolean).map((text) => `<div class="insight">${text}</div>`).join("");
 
   document.querySelector("#anomalies").innerHTML = data.anomalies.length
     ? data.anomalies.map((item) => `<p class="anomaly"><b>${dateLabel(item.month)}</b> - ${moneyShort(item.revenue)} revenue</p>`).join("")
@@ -316,6 +437,9 @@ function render(data) {
   document.querySelector("#avg-order").textContent = money.format(rupees(metrics.avgOrder));
   document.querySelector("#top-category").textContent = metrics.topCategory;
   document.querySelector("#top-region").textContent = `${metrics.topRegion} leads by region`;
+  document.querySelector("#top-salesperson").textContent = metrics.topSalesperson || "-";
+  document.querySelector("#unique-customers").textContent = `${number.format(metrics.uniqueCustomers || 0)} unique customers`;
+  document.querySelector("#total-shipping").textContent = money.format(rupees(metrics.totalShipping || 0));
   document.querySelector("#best-month").textContent = dateLabel(metrics.bestMonth);
   document.querySelector("#worst-month").textContent = dateLabel(metrics.worstMonth);
   document.querySelector("#forecast-total").textContent = money.format(rupees(data.forecast.reduce((total, item) => total + item.revenue, 0)));

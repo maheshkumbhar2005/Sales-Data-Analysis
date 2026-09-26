@@ -97,7 +97,30 @@ Because the sample CSV does not include product costs, profit is estimated with 
 
 ## Sales data fields
 
-The source CSV includes `Date`, `Product`, `Category`, `Region`, `Units_Sold`, `Unit_Price`, `Total_Sales`, `Cost_Price`, `Profit`, `Profit_Margin`, and `Discount`. `Cost_Price` is a per-unit value, `Discount` is a percentage, and `Profit` is calculated as `Total_Sales - (Cost_Price * Units_Sold)`. The sample uses a 70% cost baseline and 0% discount because the original source data did not provide those business fields.
+The source CSV includes the following columns:
+
+| Column | Description |
+|---|---|
+| `Order_ID` | Unique identifier for each order (e.g., `ORD-00001`) |
+| `Customer_ID` | Unique identifier for each customer (e.g., `CUST-0001`) |
+| `Customer_Name` | Full name of the customer |
+| `Date` | Transaction date in `YYYY-MM-DD` format |
+| `Product` | Name of the product sold |
+| `Category` | Product category (Electronics, Accessories, Furniture, Stationery) |
+| `Region` | Sales region (North, South, East, West) |
+| `Units_Sold` | Number of units sold in the transaction |
+| `Unit_Price` | Price per unit (USD) |
+| `Total_Sales` | Total revenue from the transaction (USD) |
+| `Cost_Price` | Per-unit cost price |
+| `Profit` | Calculated as `Total_Sales - (Cost_Price * Units_Sold)` |
+| `Profit_Margin` | Profit as a percentage of revenue |
+| `Discount` | Discount percentage applied to the order |
+| `Salesperson` | Name of the salesperson who handled the order |
+| `Payment_Method` | Payment method used (Credit Card, Debit Card, UPI, Net Banking, Cash on Delivery) |
+| `Customer_Type` | Customer segment (Regular, Premium, Enterprise) |
+| `Shipping_Cost` | Shipping cost for the order (USD) |
+| `Order_Status` | Fulfillment status (Delivered, Shipped, Processing, Returned, Cancelled) |
+
 
 ## Output files
 

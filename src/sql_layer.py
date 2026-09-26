@@ -33,6 +33,9 @@ def create_sales_database(
             rows.append(
                 (
                     transaction_id,
+                    getattr(row, "Order_ID", f"ORD-{transaction_id:05d}"),
+                    getattr(row, "Customer_ID", ""),
+                    getattr(row, "Customer_Name", ""),
                     row.Date.isoformat(),
                     row.Product,
                     row.Category,
@@ -45,15 +48,23 @@ def create_sales_database(
                     float(row.Estimated_Profit),
                     float(row.Estimated_Margin_),
                     float(row.Discount),
+                    getattr(row, "Salesperson", ""),
+                    getattr(row, "Payment_Method", ""),
+                    getattr(row, "Customer_Type", "Regular"),
+                    float(getattr(row, "Shipping_Cost", 0)),
+                    getattr(row, "Order_Status", "Delivered"),
                 )
             )
         connection.executemany(
             """
             INSERT INTO sales (
-                transaction_id, sale_date, product, category, region,
+                transaction_id, order_id, customer_id, customer_name,
+                sale_date, product, category, region,
                 units_sold, unit_price, total_sales, cost_price,
-                estimated_cost, estimated_profit, estimated_margin, discount
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                estimated_cost, estimated_profit, estimated_margin, discount,
+                salesperson, payment_method, customer_type,
+                shipping_cost, order_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -88,6 +99,40 @@ def query_category_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.Data
             FROM sales
             GROUP BY category
             ORDER BY revenue DESC
+            """,
+            connection,
+        )
+
+
+def query_salesperson_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataFrame:
+    """Return revenue and profit grouped by salesperson."""
+    with sqlite3.connect(database_path) as connection:
+        return pd.read_sql_query(
+            """
+            SELECT salesperson,
+                   SUM(total_sales) AS revenue,
+                   SUM(units_sold) AS units_sold,
+                   SUM(estimated_profit) AS estimated_profit,
+                   COUNT(*) AS order_count
+            FROM sales
+            GROUP BY salesperson
+            ORDER BY revenue DESC
+            """,
+            connection,
+        )
+
+
+def query_order_status(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataFrame:
+    """Return order counts grouped by order status."""
+    with sqlite3.connect(database_path) as connection:
+        return pd.read_sql_query(
+            """
+            SELECT order_status,
+                   COUNT(*) AS order_count,
+                   SUM(total_sales) AS revenue
+            FROM sales
+            GROUP BY order_status
+            ORDER BY order_count DESC
             """,
             connection,
         )
