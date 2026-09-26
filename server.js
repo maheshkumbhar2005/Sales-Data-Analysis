@@ -179,7 +179,7 @@ function queryParams(url) {
   };
 }
 
-const server = createServer(async (request, response) => {
+const handleRequest = async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   try {
     if (url.pathname === "/api/dashboard") {
@@ -229,6 +229,13 @@ const server = createServer(async (request, response) => {
     response.writeHead(error.code === "ENOENT" ? 404 : 500, { "Content-Type": "text/plain" });
     response.end(error.code === "ENOENT" ? "Not found" : "Server error");
   }
-});
+};
 
+const server = createServer(handleRequest);
 server.listen(port, () => console.log(`Sales dashboard running at http://localhost:${port}`));
+
+if (port !== 3000) {
+  const altServer = createServer(handleRequest);
+  altServer.on("error", () => {});
+  altServer.listen(3000, () => console.log(`Also accessible at http://localhost:3000`));
+}
