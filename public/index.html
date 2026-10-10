@@ -45,6 +45,7 @@
           <span class="theme-icon moon-icon">🌙</span>
           <span class="theme-text">Dark Mode</span>
         </button>
+        <button class="download-button" onclick="window.print()" style="margin-right: 8px;"><span>🖨️</span> Print PDF</button>
         <a class="download-button" id="download" href="/api/download.csv"><span>↓</span> Export CSV</a>
       </div>
     </div>
@@ -83,10 +84,42 @@
         <section id="order-status" class="content-grid" style="margin-bottom: 17px;"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Fulfillment</p><h2>Order status distribution</h2></div></div><div class="chart-wrap compact"><canvas id="status-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Status breakdown</p><h2>Order counts</h2></div></div><div id="status-list" class="region-list"></div></article></section>
         <section id="forecast" class="content-grid forecast-section"><article class="panel wide"><div class="panel-header"><div><p class="eyebrow">Baseline model</p><h2>Revenue outlook</h2></div><span class="forecast-tag">Projected</span></div><div class="chart-wrap"><canvas id="forecast-chart"></canvas></div></article><article class="panel forecast-copy"><p class="eyebrow">Planning signal</p><strong id="forecast-total">--</strong><p>Projected revenue across the selected horizon, based on the recent trend line.</p><div class="mini-stat"><span>Best month</span><b id="best-month">--</b></div><div class="mini-stat"><span>Lowest month</span><b id="worst-month">--</b></div></article></section>
         <section id="python-visuals" class="content-grid lower" style="margin-top: 25px;"><article class="panel wide"><div class="panel-header"><div><p class="eyebrow">Matplotlib Visuals</p><h2>Sales Performance Dashboard</h2></div></div><div style="padding: 14px; text-align: center;"><img src="/output/sales_dashboard.png" alt="Sales Performance Dashboard" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line);"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Trend Visual</p><h2>Revenue Trend</h2></div></div><div style="padding: 14px; text-align: center;"><img src="/output/revenue_trend.png" alt="Revenue Trend" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line);"></div></article></section>
+        <section id="raw-data" class="content-grid" style="grid-template-columns: 1fr; margin-top: 25px;">
+          <article class="panel wide">
+            <div class="panel-header">
+              <div><p class="eyebrow">Data Grid</p><h2>Raw Transactions</h2></div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table id="data-table" class="data-table">
+                <thead>
+                  <tr>
+                    <th>Order ID</th><th>Date</th><th>Customer</th><th>Product</th><th>Category</th><th>Region</th><th>Units</th><th>Revenue</th><th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="data-table-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
       </div>
       <footer>Sales Data Analysis <span>•</span> Powered by Node.js and the local CSV</footer>
     </main>
   </div>
+  
+  <div id="ai-chat-widget" class="ai-chat-widget minimized">
+    <div class="chat-header" onclick="document.getElementById('ai-chat-widget').classList.toggle('minimized')">
+      <span>✨ Data Assistant</span>
+      <button>+</button>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <div class="message system">Hi! Ask me anything about your sales data. (e.g., "best month", "total revenue", or "top category")</div>
+    </div>
+    <div class="chat-footer">
+      <input type="text" id="chat-input" placeholder="Ask a question..." />
+      <button id="chat-send">Send</button>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>

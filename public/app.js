@@ -207,7 +207,15 @@ function renderCharts(data) {
       responsive: true,
       maintainAspectRatio: false,
       cutout: "70%",
-      plugins: { legend: { display: false }, tooltip: getMoneyTooltip() }
+      plugins: { legend: { display: false }, tooltip: getMoneyTooltip() },
+      onClick: (event, elements) => {
+        if (elements.length > 0) {
+          const categoryName = data.categories[elements[0].index].name;
+          const select = document.querySelector("#categories");
+          Array.from(select.options).forEach(opt => opt.selected = opt.value === categoryName);
+          load();
+        }
+      }
     }
   });
 
@@ -446,6 +454,23 @@ function render(data) {
 
   renderLists(data);
   renderCharts(data);
+
+  const tableBody = document.querySelector("#data-table-body");
+  if (tableBody && data.rows) {
+    tableBody.innerHTML = data.rows.slice(0, 50).map(row => 
+      `<tr>
+        <td>${row.orderId}</td>
+        <td>${row.date}</td>
+        <td>${row.customerName}</td>
+        <td>${row.product}</td>
+        <td>${row.category}</td>
+        <td>${row.region}</td>
+        <td>${number.format(row.units)}</td>
+        <td>${moneyShort(row.revenue)}</td>
+        <td>${row.orderStatus}</td>
+      </tr>`
+    ).join("");
+  }
 }
 
 async function load() {
@@ -493,3 +518,33 @@ init().catch((error) => {
   document.querySelector("#empty-state").textContent = `Dashboard could not load: ${error.message}`;
   document.querySelector("#empty-state").classList.remove("hidden");
 });
+
+// Chatbot functionality
+document.querySelector("#chat-send")?.addEventListener("click", sendChatMessage);
+document.querySelector("#chat-input")?.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendChatMessage();
+});
+
+async function sendChatMessage() {
+  const input = document.querySelector("#chat-input");
+  const text = input.value.trim();
+  if (!text) return;
+  
+  const chatBody = document.querySelector("#chat-body");
+  chatBody.innerHTML += `<div class="message user">${text}</div>`;
+  input.value = "";
+  chatBody.scrollTop = chatBody.scrollHeight;
+  
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: text, filters: Object.fromEntries(queryString()) })
+    });
+    const data = await response.json();
+    chatBody.innerHTML += `<div class="message system">${data.answer || "Sorry, I couldn't understand that."}</div>`;
+  } catch(e) {
+    chatBody.innerHTML += `<div class="message system" style="color:red">Error reaching assistant.</div>`;
+  }
+  chatBody.scrollTop = chatBody.scrollHeight;
+}

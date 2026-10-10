@@ -147,3 +147,14 @@ See [`powerbi/README.md`](powerbi/README.md) for the recommended Power BI model 
 
 - The repository's MIT license remains unchanged.
 - This is a starter project intended for learning and expansion into a real dashboard or business reporting workflow.
+
+## Contributions
+
+The following advanced features were contributed to this project to make it production-ready:
+- **Dockerization**: Included `Dockerfile`s and `docker-compose.yml` for seamless multi-container orchestration.
+- **Real-time Data API**: Added a `POST /api/sales` endpoint in the Node backend to process live sales data.
+- **Interactive Chatbot**: Built-in AI Data Assistant for natural language querying over sales metrics.
+- **Raw Data Grid**: A responsive data table embedded in the dashboard for transaction-level analysis.
+- **Cross-Filtering**: Dashboard charts are fully interactive, updating filters upon click.
+- **RFM Segmentation**: Added Customer Segmentation grouping (VIP, At Risk, New, Regular) in the Python pipeline.
+- **CI/CD & Alerting**: Created GitHub Actions workflows and a proactive SMTP email alerting script.

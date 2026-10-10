@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, appendFile } from "node:fs/promises";
+import { exec } from "node:child_process";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -222,7 +223,7 @@ function csv(items) {
   return [columns.join(","), ...items.map((item) => columns.map((column) => escape(item[column])).join(","))].join("\n");
 }
 
-const sales = parseCsv(await readFile(dataPath, "utf8")).map(toSale).sort((a, b) => a.date.localeCompare(b.date));
+let sales = parseCsv(await readFile(dataPath, "utf8")).map(toSale).sort((a, b) => a.date.localeCompare(b.date));
 
 function queryParams(url) {
   return {
@@ -240,6 +241,64 @@ const handleRequest = async (request, response) => {
     if (url.pathname === "/api/dashboard") {
       response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       response.end(JSON.stringify(buildDashboard(sales, queryParams(url))));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/sales") {
+      let body = "";
+      request.on("data", chunk => body += chunk.toString());
+      request.on("end", async () => {
+        try {
+          const payload = JSON.parse(body);
+          const columns = ["Order_ID","Customer_ID","Customer_Name","Date","Product","Category","Region","Units_Sold","Unit_Price","Total_Sales","Cost_Price","Profit","Profit_Margin","Discount","Salesperson","Payment_Method","Customer_Type","Shipping_Cost","Order_Status"];
+          const row = "\\n" + columns.map(c => `"${String(payload[c] ?? payload[c.toLowerCase()] ?? "").replaceAll('"', '""')}"`).join(",");
+          
+          await appendFile(dataPath, row);
+          
+          sales = parseCsv(await readFile(dataPath, "utf8")).map(toSale).sort((a, b) => a.date.localeCompare(b.date));
+          
+          exec("python main.py", (err) => {
+            if (err) console.error("Error running main.py:", err);
+          });
+          
+          response.writeHead(201, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+          response.end(JSON.stringify({ success: true, message: "Sale added and pipeline triggered" }));
+        } catch(e) {
+          response.writeHead(400, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/chat") {
+      let body = "";
+      request.on("data", chunk => body += chunk.toString());
+      request.on("end", async () => {
+        try {
+          const payload = JSON.parse(body);
+          const q = (payload.question || "").toLowerCase();
+          let answer = "I'm a simple assistant. Ask about 'best month', 'total revenue', or 'top category'.";
+          
+          const dash = buildDashboard(sales, payload.filters || { regions: [], categories: [] });
+          
+          if (q.includes("best month") || q.includes("top month") || q.includes("highest month")) {
+            answer = `The best month for revenue was ${dash.metrics.bestMonth}.`;
+          } else if (q.includes("revenue") || q.includes("total sales")) {
+            answer = `The total revenue for the current filters is $${dash.metrics.revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}.`;
+          } else if (q.includes("category") || q.includes("top category")) {
+            answer = `The highest generating category is ${dash.metrics.topCategory}.`;
+          } else if (q.includes("product") || q.includes("top product")) {
+            answer = `The top-selling product by units is ${dash.products[0]?.name || "N/A"}.`;
+          } else if (q.includes("unique") || q.includes("customers")) {
+            answer = `There were ${dash.metrics.uniqueCustomers} unique customers.`;
+          }
+          
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ answer }));
+        } catch(e) {
+          response.writeHead(400, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ error: e.message }));
+        }
+      });
       return;
     }
     if (url.pathname === "/api/download.csv") {

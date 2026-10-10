@@ -782,10 +782,38 @@ def print_report(summary: dict) -> None:
         print(summary["order_status_counts"].to_string(index=False))
 
 
+def calculate_rfm(df: pd.DataFrame) -> pd.DataFrame:
+    if "Customer_ID" not in df.columns or df.empty:
+        return pd.DataFrame()
+    max_date = df["Date"].max()
+    rfm = df.groupby("Customer_ID").agg(
+        Recency=("Date", lambda x: (max_date - x.max()).days),
+        Frequency=("Order_ID", "nunique"),
+        Monetary=("Total_Sales", "sum")
+    ).reset_index()
+    if len(rfm) < 4:
+        return rfm
+    rfm["R_Score"] = pd.qcut(rfm["Recency"], 4, labels=[4, 3, 2, 1], duplicates='drop').astype(int)
+    rfm["F_Score"] = pd.qcut(rfm["Frequency"].rank(method='first'), 4, labels=[1, 2, 3, 4]).astype(int)
+    rfm["M_Score"] = pd.qcut(rfm["Monetary"], 4, labels=[1, 2, 3, 4], duplicates='drop').astype(int)
+    def segment(row):
+        r, f, m = row["R_Score"], row["F_Score"], row["M_Score"]
+        if r >= 3 and f >= 3 and m >= 3: return "VIP"
+        elif r <= 2 and f >= 3: return "At Risk"
+        elif r >= 3 and f <= 2: return "New"
+        return "Regular"
+    rfm["Segment"] = rfm.apply(segment, axis=1)
+    return rfm
+
 def main() -> None:
+    df = load_sales_data(DATA_PATH)
+    rfm = calculate_rfm(df)
+    if not rfm.empty:
+        rfm.to_csv(OUTPUT_DIR / "rfm_analysis.csv", index=False)
+        rfm.to_json(OUTPUT_DIR / "rfm_analysis.json", orient="records")
     summary = run_sales_pipeline(DATA_PATH)
     print_report(summary)
-    print("\nDashboard and summary files saved to output/")
+    print("\\nDashboard, RFM, and summary files saved to output/")
 
 
 if __name__ == "__main__":

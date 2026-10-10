@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  data-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    ports:
+      - "5000:5000"
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    depends_on:
+      - data-pipeline
