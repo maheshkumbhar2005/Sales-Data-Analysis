@@ -1,5 +1,10 @@
 # Sales Data Analysis
 
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
+![Node Version](https://img.shields.io/badge/node-%3E%3D18-green)
+![Tests](https://img.shields.io/badge/tests-31%20passed-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-purple)
+
 This project is a sales analytics dashboard built with Python, pandas, and a Node.js frontend. It reads a sales dataset, summarizes key business metrics, and provides interactive charts, filters, and exports for quick analysis.
 
 ## Features
