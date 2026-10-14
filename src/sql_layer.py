@@ -20,60 +20,65 @@ def create_sales_database(
 
     enriched = add_profit_metrics(df)
     database_path.parent.mkdir(exist_ok=True)
-    with sqlite3.connect(database_path) as connection:
-        connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-        connection.execute("DELETE FROM sales")
-        rows = []
-        for transaction_id, row in enumerate(
-            enriched.rename(
-                columns={"Estimated_Margin_%": "Estimated_Margin_"}
-            ).itertuples(index=False),
-            start=1,
-        ):
-            rows.append(
-                (
-                    transaction_id,
-                    getattr(row, "Order_ID", f"ORD-{transaction_id:05d}"),
-                    getattr(row, "Customer_ID", ""),
-                    getattr(row, "Customer_Name", ""),
-                    row.Date.isoformat(),
-                    row.Product,
-                    row.Category,
-                    row.Region,
-                    int(row.Units_Sold),
-                    float(row.Unit_Price),
-                    float(row.Total_Sales),
-                    float(row.Cost_Price),
-                    float(row.Estimated_Cost),
-                    float(row.Estimated_Profit),
-                    float(row.Estimated_Margin_),
-                    float(row.Discount),
-                    getattr(row, "Salesperson", ""),
-                    getattr(row, "Payment_Method", ""),
-                    getattr(row, "Customer_Type", "Regular"),
-                    float(getattr(row, "Shipping_Cost", 0)),
-                    getattr(row, "Order_Status", "Delivered"),
+    connection = sqlite3.connect(database_path)
+    try:
+        with connection:
+            connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+            connection.execute("DELETE FROM sales")
+            rows = []
+            for transaction_id, row in enumerate(
+                enriched.rename(
+                    columns={"Estimated_Margin_%": "Estimated_Margin_"}
+                ).itertuples(index=False),
+                start=1,
+            ):
+                rows.append(
+                    (
+                        transaction_id,
+                        getattr(row, "Order_ID", f"ORD-{transaction_id:05d}"),
+                        getattr(row, "Customer_ID", ""),
+                        getattr(row, "Customer_Name", ""),
+                        row.Date.isoformat(),
+                        row.Product,
+                        row.Category,
+                        row.Region,
+                        int(row.Units_Sold),
+                        float(row.Unit_Price),
+                        float(row.Total_Sales),
+                        float(row.Cost_Price),
+                        float(row.Estimated_Cost),
+                        float(row.Estimated_Profit),
+                        float(row.Estimated_Margin_),
+                        float(row.Discount),
+                        getattr(row, "Salesperson", ""),
+                        getattr(row, "Payment_Method", ""),
+                        getattr(row, "Customer_Type", "Regular"),
+                        float(getattr(row, "Shipping_Cost", 0)),
+                        getattr(row, "Order_Status", "Delivered"),
+                    )
                 )
+            connection.executemany(
+                """
+                INSERT INTO sales (
+                    transaction_id, order_id, customer_id, customer_name,
+                    sale_date, product, category, region,
+                    units_sold, unit_price, total_sales, cost_price,
+                    estimated_cost, estimated_profit, estimated_margin, discount,
+                    salesperson, payment_method, customer_type,
+                    shipping_cost, order_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
             )
-        connection.executemany(
-            """
-            INSERT INTO sales (
-                transaction_id, order_id, customer_id, customer_name,
-                sale_date, product, category, region,
-                units_sold, unit_price, total_sales, cost_price,
-                estimated_cost, estimated_profit, estimated_margin, discount,
-                salesperson, payment_method, customer_type,
-                shipping_cost, order_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
+    finally:
+        connection.close()
     return database_path
 
 
 def query_monthly_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataFrame:
     """Return monthly revenue, units, and profit from the SQLite database."""
-    with sqlite3.connect(database_path) as connection:
+    connection = sqlite3.connect(database_path)
+    try:
         return pd.read_sql_query(
             """
             SELECT strftime('%Y-%m', sale_date) AS month,
@@ -86,11 +91,14 @@ def query_monthly_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataF
             """,
             connection,
         )
+    finally:
+        connection.close()
 
 
 def query_category_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataFrame:
     """Return revenue and profit grouped by category."""
-    with sqlite3.connect(database_path) as connection:
+    connection = sqlite3.connect(database_path)
+    try:
         return pd.read_sql_query(
             """
             SELECT category,
@@ -102,11 +110,14 @@ def query_category_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.Data
             """,
             connection,
         )
+    finally:
+        connection.close()
 
 
 def query_salesperson_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataFrame:
     """Return revenue and profit grouped by salesperson."""
-    with sqlite3.connect(database_path) as connection:
+    connection = sqlite3.connect(database_path)
+    try:
         return pd.read_sql_query(
             """
             SELECT salesperson,
@@ -120,11 +131,14 @@ def query_salesperson_sales(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.D
             """,
             connection,
         )
+    finally:
+        connection.close()
 
 
 def query_order_status(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataFrame:
     """Return order counts grouped by order status."""
-    with sqlite3.connect(database_path) as connection:
+    connection = sqlite3.connect(database_path)
+    try:
         return pd.read_sql_query(
             """
             SELECT order_status,
@@ -136,3 +150,5 @@ def query_order_status(database_path: Path = DEFAULT_DATABASE_PATH) -> pd.DataFr
             """,
             connection,
         )
+    finally:
+        connection.close()

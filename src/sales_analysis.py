@@ -590,7 +590,7 @@ def split_time_series(
 
 
 def forecast_sales(df: pd.DataFrame, periods: int = 3) -> pd.DataFrame:
-    """Forecast monthly revenue and units with trend and seasonal features."""
+    """Forecast monthly revenue and units with trend, seasonal features, and 95% confidence intervals."""
     if periods < 1:
         raise ValueError("Forecast periods must be at least 1.")
 
@@ -600,17 +600,28 @@ def forecast_sales(df: pd.DataFrame, periods: int = 3) -> pd.DataFrame:
     revenue_model = LinearRegression().fit(model_inputs, features["Total_Sales"])
     units_model = LinearRegression().fit(model_inputs, features["Units_Sold"])
 
+    # Calculate residual error for 95% prediction intervals
+    fitted_rev = revenue_model.predict(model_inputs)
+    residuals = features["Total_Sales"] - fitted_rev
+    dof = max(1, len(features) - len(feature_columns) - 1)
+    rmse = np.sqrt(np.sum(residuals**2) / dof)
+
     last_period = features["Month_Period"].iloc[-1]
     future = pd.DataFrame({"Month_Period": pd.period_range(last_period + 1, periods=periods, freq="M")})
     future["Month_Index"] = range(len(features), len(features) + periods)
     future["Month_Number"] = future["Month_Period"].dt.month
-    radians = future["Month_Number"] * 2 * 3.141592653589793 / 12
+    radians = future["Month_Number"] * 2 * np.pi / 12
     future["Month_Sin"] = np.sin(radians)
     future["Month_Cos"] = np.cos(radians)
-    future["Predicted_Revenue"] = revenue_model.predict(future[feature_columns]).clip(min=0)
-    future["Predicted_Units"] = units_model.predict(future[feature_columns]).clip(min=0)
+    pred_rev = revenue_model.predict(future[feature_columns]).clip(min=0)
+    margin = 1.96 * rmse * np.sqrt(1 + 1 / len(features) + (np.arange(1, periods + 1)**2) / len(features))
+
+    future["Predicted_Revenue"] = np.round(pred_rev, 2)
+    future["Revenue_Upper_Bound"] = np.maximum(future["Predicted_Revenue"], np.round(pred_rev + margin, 2))
+    future["Revenue_Lower_Bound"] = np.minimum(future["Predicted_Revenue"], np.maximum(0, np.round(pred_rev - margin, 2)))
+    future["Predicted_Units"] = np.round(units_model.predict(future[feature_columns]).clip(min=0), 2)
     future["Forecast_Month"] = future.pop("Month_Period").astype(str)
-    return future[["Forecast_Month", "Predicted_Revenue", "Predicted_Units"]]
+    return future[["Forecast_Month", "Predicted_Revenue", "Revenue_Upper_Bound", "Revenue_Lower_Bound", "Predicted_Units"]]
 
 
 def export_summary(summary: dict) -> None:
@@ -792,10 +803,14 @@ def calculate_rfm(df: pd.DataFrame) -> pd.DataFrame:
         Monetary=("Total_Sales", "sum")
     ).reset_index()
     if len(rfm) < 4:
+        rfm["R_Score"] = 2
+        rfm["F_Score"] = 2
+        rfm["M_Score"] = 2
+        rfm["Segment"] = "Regular"
         return rfm
-    rfm["R_Score"] = pd.qcut(rfm["Recency"], 4, labels=[4, 3, 2, 1], duplicates='drop').astype(int)
-    rfm["F_Score"] = pd.qcut(rfm["Frequency"].rank(method='first'), 4, labels=[1, 2, 3, 4]).astype(int)
-    rfm["M_Score"] = pd.qcut(rfm["Monetary"], 4, labels=[1, 2, 3, 4], duplicates='drop').astype(int)
+    rfm["R_Score"] = pd.qcut(rfm["Recency"].rank(method="first", ascending=True), 4, labels=[4, 3, 2, 1]).astype(int)
+    rfm["F_Score"] = pd.qcut(rfm["Frequency"].rank(method="first"), 4, labels=[1, 2, 3, 4]).astype(int)
+    rfm["M_Score"] = pd.qcut(rfm["Monetary"].rank(method="first"), 4, labels=[1, 2, 3, 4]).astype(int)
     def segment(row):
         r, f, m = row["R_Score"], row["F_Score"], row["M_Score"]
         if r >= 3 and f >= 3 and m >= 3: return "VIP"
@@ -805,15 +820,105 @@ def calculate_rfm(df: pd.DataFrame) -> pd.DataFrame:
     rfm["Segment"] = rfm.apply(segment, axis=1)
     return rfm
 
+
+def calculate_cohort_retention(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate monthly cohort retention percentages for repeat customer orders."""
+    if "Customer_ID" not in df.columns or "Date" not in df.columns or df.empty:
+        return pd.DataFrame()
+
+    data = df[["Customer_ID", "Date", "Total_Sales"]].copy()
+    data["Order_Month"] = data["Date"].dt.to_period("M")
+
+    cohorts = data.groupby("Customer_ID")["Order_Month"].min().reset_index()
+    cohorts.columns = ["Customer_ID", "Cohort_Month"]
+
+    merged = pd.merge(data, cohorts, on="Customer_ID")
+    merged["Cohort_Index"] = (
+        (merged["Order_Month"].dt.year - merged["Cohort_Month"].dt.year) * 12
+        + (merged["Order_Month"].dt.month - merged["Cohort_Month"].dt.month)
+    )
+
+    cohort_group = (
+        merged.groupby(["Cohort_Month", "Cohort_Index"])["Customer_ID"]
+        .nunique()
+        .reset_index()
+    )
+    cohort_pivot = cohort_group.pivot(
+        index="Cohort_Month", columns="Cohort_Index", values="Customer_ID"
+    ).fillna(0)
+
+    if 0 not in cohort_pivot.columns:
+        return pd.DataFrame()
+
+    cohort_sizes = cohort_pivot[0]
+    retention_matrix = cohort_pivot.divide(cohort_sizes, axis=0) * 100
+    retention_matrix.index = retention_matrix.index.astype(str)
+    return retention_matrix.round(1)
+
+
+def generate_plotly_visuals(df: pd.DataFrame, rfm: pd.DataFrame, cohort_matrix: pd.DataFrame) -> None:
+    """Generate standalone interactive HTML reports with Plotly."""
+    try:
+        import plotly.express as px
+        import plotly.graph_objects as go
+
+        OUTPUT_DIR.mkdir(exist_ok=True)
+
+        if not rfm.empty and len(rfm) >= 4:
+            fig_rfm = px.scatter_3d(
+                rfm,
+                x="Recency",
+                y="Frequency",
+                z="Monetary",
+                color="Segment",
+                hover_name="Customer_ID",
+                color_discrete_map={"VIP": "#e7a93b", "At Risk": "#e4572e", "New": "#168c83", "Regular": "#4e79a7"},
+                title="Customer RFM 3D Behavioral Space",
+                template="plotly_dark",
+            )
+            fig_rfm.update_layout(margin=dict(l=0, r=0, b=0, t=40))
+            fig_rfm.write_html(OUTPUT_DIR / "rfm_3d_scatter.html")
+
+        if not cohort_matrix.empty:
+            z_values = cohort_matrix.values
+            x_labels = [f"Month +{col}" for col in cohort_matrix.columns]
+            y_labels = list(cohort_matrix.index)
+            fig_cohort = go.Figure(
+                data=go.Heatmap(
+                    z=z_values,
+                    x=x_labels,
+                    y=y_labels,
+                    colorscale="Teal",
+                    texttemplate="%{z:.1f}%",
+                    textfont={"size": 12},
+                    hoverongaps=False,
+                )
+            )
+            fig_cohort.update_layout(
+                title="Customer Monthly Cohort Retention Rates (%)",
+                template="plotly_dark",
+                xaxis_title="Months Since First Order",
+                yaxis_title="Cohort Month",
+            )
+            fig_cohort.write_html(OUTPUT_DIR / "cohort_retention.html")
+    except Exception as exc:
+        print(f"Plotly visual generation skipped ({exc})")
+
+
 def main() -> None:
     df = load_sales_data(DATA_PATH)
     rfm = calculate_rfm(df)
     if not rfm.empty:
         rfm.to_csv(OUTPUT_DIR / "rfm_analysis.csv", index=False)
         rfm.to_json(OUTPUT_DIR / "rfm_analysis.json", orient="records")
+    cohort_matrix = calculate_cohort_retention(df)
+    if not cohort_matrix.empty:
+        cohort_matrix.to_csv(OUTPUT_DIR / "cohort_retention.csv")
+        cohort_matrix.reset_index().to_json(OUTPUT_DIR / "cohort_retention.json", orient="records")
+    generate_plotly_visuals(df, rfm, cohort_matrix)
     summary = run_sales_pipeline(DATA_PATH)
     print_report(summary)
-    print("\\nDashboard, RFM, and summary files saved to output/")
+    print("\\nDashboard, RFM, Cohort, and summary files saved to output/")
 
 
 if __name__ == "__main__":

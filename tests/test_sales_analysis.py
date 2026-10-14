@@ -432,6 +432,10 @@ def test_forecast_sales_returns_future_non_negative_predictions():
     assert {"Month_Index", "Month_Sin", "Month_Cos"}.issubset(features.columns)
     assert list(forecast["Forecast_Month"]) == ["2025-04", "2025-05"]
     assert (forecast[["Predicted_Revenue", "Predicted_Units"]] >= 0).all().all()
+    assert "Revenue_Upper_Bound" in forecast.columns
+    assert "Revenue_Lower_Bound" in forecast.columns
+    assert (forecast["Revenue_Upper_Bound"] >= forecast["Predicted_Revenue"]).all()
+    assert (forecast["Revenue_Lower_Bound"] <= forecast["Predicted_Revenue"]).all()
 
 
 def test_forecast_sales_rejects_invalid_horizon():
@@ -605,3 +609,130 @@ def test_summarize_sales_handles_zero_previous_month():
     summary = summarize_sales(df)
 
     assert summary["monthly_sales"]["MoM_Growth_%"].tolist() == [0, 0]
+
+
+def test_calculate_rfm_segments():
+    from src.sales_analysis import calculate_rfm
+    assert calculate_rfm(pd.DataFrame()).empty
+
+    rows = []
+    for i in range(1, 20):
+        rows.append({
+            "Order_ID": f"ORD-{i:05d}", "Customer_ID": f"CUST-{(i % 5) + 1:04d}", "Customer_Name": "Cust",
+            "Date": pd.to_datetime(f"2025-0{(i % 9) + 1}-10"), "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200 * i,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        })
+    df = pd.DataFrame(rows)
+    rfm = calculate_rfm(df)
+    assert not rfm.empty
+    assert "Segment" in rfm.columns
+    assert set(rfm["Segment"]).issubset({"VIP", "At Risk", "New", "Regular"})
+
+
+def test_alert_module(tmp_path, monkeypatch):
+    from src.alert import check_anomalies_and_alert, send_email_alert
+    from src.sql_layer import create_sales_database
+
+    # Non-existent DB
+    result = check_anomalies_and_alert(tmp_path / "nonexistent.db")
+    assert not result["triggered"]
+
+    # Database with significant drop (> 20%)
+    df_drop = pd.DataFrame([
+        {
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": pd.to_datetime("2025-01-15"), "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 10, "Unit_Price": 100, "Total_Sales": 1000,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+        {
+            "Order_ID": "ORD-00002", "Customer_ID": "CUST-0002", "Customer_Name": "Bob",
+            "Date": pd.to_datetime("2025-02-15"), "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 1, "Unit_Price": 100, "Total_Sales": 100,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+    ])
+    db_path = tmp_path / "drop.db"
+    create_sales_database(df_drop, db_path)
+
+    dispatched = []
+    monkeypatch.setattr("src.alert.send_email_alert", lambda subject, body: dispatched.append(subject))
+    result = check_anomalies_and_alert(db_path)
+    assert result["triggered"]
+    assert len(dispatched) == 1
+
+    # Database with stable growth (growth > -20%)
+    df_stable = pd.DataFrame([
+        {
+            "Order_ID": "ORD-00001", "Customer_ID": "CUST-0001", "Customer_Name": "Alice",
+            "Date": pd.to_datetime("2025-01-15"), "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 5, "Unit_Price": 100, "Total_Sales": 500,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+        {
+            "Order_ID": "ORD-00002", "Customer_ID": "CUST-0002", "Customer_Name": "Bob",
+            "Date": pd.to_datetime("2025-02-15"), "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 6, "Unit_Price": 100, "Total_Sales": 600,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        },
+    ])
+    db_stable_path = tmp_path / "stable.db"
+    create_sales_database(df_stable, db_stable_path)
+    result_stable = check_anomalies_and_alert(db_stable_path)
+    assert not result_stable["triggered"]
+
+    # Test send_email_alert dry-run logger
+    send_email_alert("Test Subject", "Test Body")
+
+
+def test_calculate_cohort_retention():
+    from src.sales_analysis import calculate_cohort_retention
+
+    # Empty cases
+    assert calculate_cohort_retention(pd.DataFrame()).empty
+    assert calculate_cohort_retention(pd.DataFrame({"A": [1]})).empty
+
+    # Multi-month cohort data
+    rows = [
+        {"Customer_ID": "C1", "Date": pd.to_datetime("2025-01-10"), "Total_Sales": 100},
+        {"Customer_ID": "C2", "Date": pd.to_datetime("2025-01-15"), "Total_Sales": 200},
+        {"Customer_ID": "C1", "Date": pd.to_datetime("2025-02-10"), "Total_Sales": 150},
+        {"Customer_ID": "C3", "Date": pd.to_datetime("2025-02-12"), "Total_Sales": 300},
+    ]
+    df = pd.DataFrame(rows)
+    cohort = calculate_cohort_retention(df)
+    assert not cohort.empty
+    assert 0 in cohort.columns
+    # Month 0 retention should always be 100%
+    assert (cohort[0] == 100.0).all()
+    # In cohort 2025-01: C1 and C2 joined. Month 1 (Feb 2025): C1 purchased again (1/2 = 50.0%)
+    assert cohort.loc["2025-01", 1] == 50.0
+
+
+def test_generate_plotly_visuals(tmp_path, monkeypatch):
+    from src.sales_analysis import generate_plotly_visuals, calculate_rfm, calculate_cohort_retention
+    monkeypatch.setattr("src.sales_analysis.OUTPUT_DIR", tmp_path)
+
+    rows = []
+    for i in range(1, 15):
+        rows.append({
+            "Order_ID": f"ORD-{i:05d}", "Customer_ID": f"CUST-{(i % 4) + 1:04d}", "Customer_Name": f"Cust {i}",
+            "Date": pd.to_datetime(f"2025-0{(i % 6) + 1}-10"), "Product": "Laptop", "Category": "Electronics",
+            "Region": "North", "Units_Sold": 2, "Unit_Price": 100, "Total_Sales": 200 * i,
+            "Salesperson": "Amit Patil", "Payment_Method": "Credit Card",
+            "Customer_Type": "Regular", "Shipping_Cost": 50, "Order_Status": "Delivered",
+        })
+    df = pd.DataFrame(rows)
+    rfm = calculate_rfm(df)
+    cohort = calculate_cohort_retention(df)
+    generate_plotly_visuals(df, rfm, cohort)
+
+    assert (tmp_path / "rfm_3d_scatter.html").exists()
+    assert (tmp_path / "cohort_retention.html").exists()
+

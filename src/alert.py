@@ -6,9 +6,12 @@ from pathlib import Path
 
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parent.parent / "output" / "sales.db"
 
-def check_anomalies_and_alert():
+def check_anomalies_and_alert(database_path: Path = DEFAULT_DATABASE_PATH) -> dict:
+    conn = None
     try:
-        conn = sqlite3.connect(DEFAULT_DATABASE_PATH)
+        if not Path(database_path).exists():
+            return {"triggered": False, "reason": "Database does not exist"}
+        conn = sqlite3.connect(database_path)
         cursor = conn.cursor()
         # Query monthly sales to find drops
         cursor.execute("""
@@ -22,7 +25,7 @@ def check_anomalies_and_alert():
         
         if len(rows) < 2:
             print("Not enough data for alerts.")
-            return
+            return {"triggered": False, "reason": "Insufficient historical data"}
 
         current_month, current_rev = rows[0]
         prev_month, prev_rev = rows[1]
@@ -42,11 +45,17 @@ def check_anomalies_and_alert():
                 subject=f"URGENT: Sales dropped by {abs(growth):.1f}% in {current_month}",
                 body=f"Revenue for {current_month} is ${current_rev:,.2f}, which is a {abs(growth):.1f}% drop compared to {prev_month} (${prev_rev:,.2f}).\nPlease check the dashboard."
             )
+            return {"triggered": True, "growth": growth, "current_month": current_month, "prev_month": prev_month}
         else:
             print("Sales are looking stable. No alerts triggered.")
+            return {"triggered": False, "growth": growth, "current_month": current_month, "prev_month": prev_month}
             
     except Exception as e:
         print(f"Error running alerts: {e}")
+        return {"triggered": False, "error": str(e)}
+    finally:
+        if conn is not None:
+            conn.close()
 
 def send_email_alert(subject, body):
     sender = os.environ.get("ALERT_EMAIL_SENDER", "alerts@salesdashboard.local")

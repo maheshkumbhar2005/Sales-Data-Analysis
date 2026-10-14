@@ -32,7 +32,10 @@
           <a href="#trends">Trends</a>
           <a href="#performance">Performance</a>
           <a href="#forecast">Forecast</a>
+          <a href="#loyalty">Loyalty (RFM)</a>
+          <a href="#cohort-analysis">Cohorts</a>
           <a href="#python-visuals">Generated Plots</a>
+          <a href="#raw-data">Transactions</a>
         </nav>
       </div>
       <div class="workspace-right">
@@ -40,6 +43,16 @@
           <span class="live-dot"></span>
           <span>Live dataset</span>
         </div>
+        <button id="open-upload-modal" class="upload-btn" title="Upload Custom CSV Dataset">
+          <span>📁</span> Upload CSV
+        </button>
+        <button id="currency-toggle" class="currency-toggle-button" aria-label="Toggle currency" title="Toggle USD ($) or INR (₹)">
+          <span id="currency-symbol">₹</span>
+          <span id="currency-text">INR</span>
+        </button>
+        <button id="open-add-modal" class="add-order-button" title="Add New Transaction">
+          <span>+</span> Add Order
+        </button>
         <button id="theme-toggle" class="theme-toggle-button" aria-label="Toggle theme" title="Toggle dark or light theme">
           <span class="theme-icon sun-icon">☀️</span>
           <span class="theme-icon moon-icon">🌙</span>
@@ -82,37 +95,277 @@
         <section id="performance" class="content-grid lower"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Mix</p><h2>Category contribution</h2></div></div><div class="chart-wrap doughnut"><canvas id="category-chart"></canvas></div><div id="category-list" class="rank-list"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Leaderboard</p><h2>Top products by units</h2></div></div><div class="chart-wrap product-chart"><canvas id="product-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Geography</p><h2>Regional performance</h2></div></div><div id="region-list" class="region-list"></div></article></section>
         <section id="people" class="content-grid lower"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Team</p><h2>Salesperson performance</h2></div></div><div id="salesperson-list" class="rank-list"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Payments</p><h2>Payment methods</h2></div></div><div class="chart-wrap doughnut"><canvas id="payment-chart"></canvas></div><div id="payment-list" class="rank-list"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Customers</p><h2>Customer segments</h2></div></div><div class="chart-wrap doughnut"><canvas id="customer-type-chart"></canvas></div><div id="customer-type-list" class="rank-list"></div></article></section>
         <section id="order-status" class="content-grid" style="margin-bottom: 17px;"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Fulfillment</p><h2>Order status distribution</h2></div></div><div class="chart-wrap compact"><canvas id="status-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Status breakdown</p><h2>Order counts</h2></div></div><div id="status-list" class="region-list"></div></article></section>
-        <section id="forecast" class="content-grid forecast-section"><article class="panel wide"><div class="panel-header"><div><p class="eyebrow">Baseline model</p><h2>Revenue outlook</h2></div><span class="forecast-tag">Projected</span></div><div class="chart-wrap"><canvas id="forecast-chart"></canvas></div></article><article class="panel forecast-copy"><p class="eyebrow">Planning signal</p><strong id="forecast-total">--</strong><p>Projected revenue across the selected horizon, based on the recent trend line.</p><div class="mini-stat"><span>Best month</span><b id="best-month">--</b></div><div class="mini-stat"><span>Lowest month</span><b id="worst-month">--</b></div></article></section>
-        <section id="python-visuals" class="content-grid lower" style="margin-top: 25px;"><article class="panel wide"><div class="panel-header"><div><p class="eyebrow">Matplotlib Visuals</p><h2>Sales Performance Dashboard</h2></div></div><div style="padding: 14px; text-align: center;"><img src="/output/sales_dashboard.png" alt="Sales Performance Dashboard" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line);"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Trend Visual</p><h2>Revenue Trend</h2></div></div><div style="padding: 14px; text-align: center;"><img src="/output/revenue_trend.png" alt="Revenue Trend" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line);"></div></article></section>
+        <section id="forecast" class="content-grid forecast-section">
+          <article class="panel wide">
+            <div class="panel-header">
+              <div><p class="eyebrow">Baseline Model & Prediction Intervals</p><h2>Revenue Outlook (95% Confidence Bounds)</h2></div>
+              <span class="forecast-tag">Projected Corridor</span>
+            </div>
+            <div class="chart-wrap"><canvas id="forecast-chart"></canvas></div>
+          </article>
+          <article class="panel forecast-copy">
+            <p class="eyebrow">Planning signal</p>
+            <strong id="forecast-total">--</strong>
+            <p>Projected revenue across selected horizon with upper and lower statistical confidence corridors.</p>
+            <div class="mini-stat"><span>Expected Corridor</span><b id="forecast-corridor">--</b></div>
+            <div class="mini-stat"><span>Best month</span><b id="best-month">--</b></div>
+            <div class="mini-stat"><span>Lowest month</span><b id="worst-month">--</b></div>
+          </article>
+        </section>
+        
+        <section id="loyalty" class="content-grid lower" style="margin-top: 25px;">
+          <article class="panel wide">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Retention & Value</p>
+                <h2>Customer RFM Loyalty Segments</h2>
+              </div>
+              <span class="legend">Recency • Frequency • Monetary</span>
+            </div>
+            <div class="rfm-cards-grid">
+              <div class="rfm-card vip">
+                <span class="rfm-card-badge">VIP</span>
+                <strong id="rfm-vip-count">0</strong>
+                <p>Top value & highly frequent buyers</p>
+              </div>
+              <div class="rfm-card at-risk">
+                <span class="rfm-card-badge">At Risk</span>
+                <strong id="rfm-at-risk-count">0</strong>
+                <p>Past high-spenders without recent orders</p>
+              </div>
+              <div class="rfm-card new">
+                <span class="rfm-card-badge">New</span>
+                <strong id="rfm-new-count">0</strong>
+                <p>Recent first-time or emerging buyers</p>
+              </div>
+              <div class="rfm-card regular">
+                <span class="rfm-card-badge">Regular</span>
+                <strong id="rfm-regular-count">0</strong>
+                <p>Steady standard customer base</p>
+              </div>
+            </div>
+            <div style="overflow-x: auto; margin-top: 15px;">
+              <table class="data-table" id="rfm-table">
+                <thead>
+                  <tr>
+                    <th>Customer ID</th>
+                    <th>Recency (Days)</th>
+                    <th>Order Count</th>
+                    <th>Total Spent</th>
+                    <th>Segment</th>
+                  </tr>
+                </thead>
+                <tbody id="rfm-table-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section id="cohort-analysis" class="content-grid lower" style="margin-top: 25px;">
+          <article class="panel wide">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Customer Retention</p>
+                <h2>Monthly Cohort Repeat Rates (%)</h2>
+              </div>
+              <span class="legend">Percentage of customers who re-order in subsequent months</span>
+            </div>
+            <div style="overflow-x: auto; padding: 12px 18px 20px 18px;">
+              <table class="data-table cohort-table" id="cohort-table">
+                <thead id="cohort-table-head">
+                  <tr>
+                    <th>Cohort Month</th>
+                    <th>Month 0</th>
+                    <th>Month +1</th>
+                    <th>Month +2</th>
+                    <th>Month +3</th>
+                    <th>Month +4</th>
+                    <th>Month +5</th>
+                  </tr>
+                </thead>
+                <tbody id="cohort-table-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section id="python-visuals" class="content-grid lower" style="margin-top: 25px;">
+          <article class="panel wide">
+            <div class="panel-header">
+              <div><p class="eyebrow">Interactive Plotly Visuals</p><h2>Advanced Analytics & Interactive Reports</h2></div>
+              <div style="display: flex; gap: 8px;">
+                <a href="/output/rfm_3d_scatter.html" target="_blank" class="download-button" title="Open 3D interactive customer scatter space"><span>🌐</span> 3D RFM Plot</a>
+                <a href="/output/cohort_retention.html" target="_blank" class="download-button" title="Open interactive cohort heatmap"><span>📊</span> Cohort Heatmap</a>
+              </div>
+            </div>
+            <div style="padding: 14px; text-align: center;">
+              <img src="/output/sales_dashboard.png" alt="Sales Performance Dashboard" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line);">
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">Trend Visual</p><h2>Revenue Trend</h2></div>
+            </div>
+            <div style="padding: 14px; text-align: center;">
+              <img src="/output/revenue_trend.png" alt="Revenue Trend" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line);">
+            </div>
+          </article>
+        </section>
+        
         <section id="raw-data" class="content-grid" style="grid-template-columns: 1fr; margin-top: 25px;">
           <article class="panel wide">
             <div class="panel-header">
               <div><p class="eyebrow">Data Grid</p><h2>Raw Transactions</h2></div>
+              <div class="table-toolbar">
+                <input type="search" id="table-search" placeholder="Search orders, customers, products..." class="table-search-input">
+                <label class="page-size-label">Show:
+                  <select id="page-size" class="page-size-select">
+                    <option value="15">15</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="all">All</option>
+                  </select>
+                </label>
+              </div>
             </div>
             <div style="overflow-x:auto;">
               <table id="data-table" class="data-table">
                 <thead>
                   <tr>
-                    <th>Order ID</th><th>Date</th><th>Customer</th><th>Product</th><th>Category</th><th>Region</th><th>Units</th><th>Revenue</th><th>Status</th>
+                    <th class="sortable" data-sort="orderId">Order ID <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="date">Date <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="customerName">Customer <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="product">Product <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="category">Category <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="region">Region <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="units">Units <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="revenue">Revenue <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="orderStatus">Status <span class="sort-icon">↕</span></th>
                   </tr>
                 </thead>
                 <tbody id="data-table-body"></tbody>
               </table>
             </div>
+            <div class="pagination-footer">
+              <span id="pagination-info">Showing 1-25</span>
+              <div class="pagination-buttons">
+                <button id="prev-page" class="page-btn">Previous</button>
+                <span id="page-indicator">Page 1 of 1</span>
+                <button id="next-page" class="page-btn">Next</button>
+              </div>
+            </div>
           </article>
         </section>
       </div>
-      <footer>Sales Data Analysis <span>•</span> Powered by Node.js and the local CSV</footer>
+      <footer>Sales Data Analysis <span>•</span> Powered by Node.js, Python and SQLite</footer>
     </main>
   </div>
   
+  <div id="add-order-modal" class="modal-overlay hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>+ Add New Transaction</h3>
+        <button id="close-add-modal" class="close-modal-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="add-order-form" class="modal-form">
+        <div class="form-row">
+          <label>Order ID <input type="text" id="form-order-id" placeholder="ORD-00163" required></label>
+          <label>Date <input type="date" id="form-date" required></label>
+        </div>
+        <div class="form-row">
+          <label>Customer Name <input type="text" id="form-customer-name" placeholder="John Doe" required></label>
+          <label>Customer ID <input type="text" id="form-customer-id" placeholder="CUST-0001"></label>
+        </div>
+        <div class="form-row">
+          <label>Product <input type="text" id="form-product" placeholder="Laptop Pro" required></label>
+          <label>Category
+            <select id="form-category" required>
+              <option value="Electronics">Electronics</option>
+              <option value="Home & Kitchen">Home & Kitchen</option>
+              <option value="Clothing">Clothing</option>
+              <option value="Books">Books</option>
+              <option value="Sports">Sports</option>
+              <option value="Accessories">Accessories</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Region
+            <select id="form-region" required>
+              <option value="North">North</option>
+              <option value="South">South</option>
+              <option value="East">East</option>
+              <option value="West">West</option>
+            </select>
+          </label>
+          <label>Salesperson <input type="text" id="form-salesperson" placeholder="Sunita Rao" required></label>
+        </div>
+        <div class="form-row">
+          <label>Units Sold <input type="number" id="form-units" min="1" step="1" value="1" required></label>
+          <label>Unit Price ($) <input type="number" id="form-price" min="0.01" step="0.01" placeholder="150.00" required></label>
+        </div>
+        <div class="form-row">
+          <label>Discount (%) <input type="number" id="form-discount" min="0" max="100" step="1" value="0"></label>
+          <label>Shipping Cost ($) <input type="number" id="form-shipping" min="0" step="1" value="25"></label>
+        </div>
+        <div class="form-row">
+          <label>Payment Method
+            <select id="form-payment">
+              <option value="Credit Card">Credit Card</option>
+              <option value="Debit Card">Debit Card</option>
+              <option value="UPI">UPI</option>
+              <option value="Net Banking">Net Banking</option>
+              <option value="Cash on Delivery">Cash on Delivery</option>
+            </select>
+          </label>
+          <label>Order Status
+            <select id="form-status">
+              <option value="Delivered">Delivered</option>
+              <option value="Shipped">Shipped</option>
+              <option value="Processing">Processing</option>
+              <option value="Returned">Returned</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </label>
+        </div>
+        <div id="form-feedback" class="form-feedback hidden"></div>
+        <div class="modal-footer">
+          <button type="button" id="cancel-add-modal" class="modal-btn secondary">Cancel</button>
+          <button type="submit" id="submit-add-order" class="modal-btn primary">Save Transaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="upload-modal" class="modal-overlay hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>📁 Upload Sales Dataset (CSV)</h3>
+        <button id="close-upload-modal" class="close-modal-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-form">
+        <p style="font-size:12px;color:var(--muted);margin-top:0;">Upload a replacement sales CSV. It must contain standard headers: <code>Order_ID, Date, Product, Category, Region, Units_Sold, Unit_Price, Total_Sales</code>.</p>
+        <div id="drop-zone" class="drop-zone">
+          <span style="font-size:32px;">📂</span>
+          <p id="drop-zone-text" style="margin:8px 0 0 0;font-size:13px;">Drag & drop your CSV file here, or <b style="color:var(--teal);cursor:pointer;">browse</b></p>
+          <input type="file" id="csv-file-input" accept=".csv" style="display:none;">
+        </div>
+        <div id="upload-feedback" class="form-feedback hidden"></div>
+        <div class="modal-footer">
+          <button type="button" id="cancel-upload-modal" class="modal-btn secondary">Cancel</button>
+          <button type="button" id="submit-upload" class="modal-btn primary" disabled>Upload & Process</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="ai-chat-widget" class="ai-chat-widget minimized">
     <div class="chat-header" onclick="document.getElementById('ai-chat-widget').classList.toggle('minimized')">
       <span>✨ Data Assistant</span>
       <button>+</button>
     </div>
     <div class="chat-body" id="chat-body">
-      <div class="message system">Hi! Ask me anything about your sales data. (e.g., "best month", "total revenue", or "top category")</div>
+      <div class="message system">Hi! Ask me anything about your sales data. (e.g., "best month", "total revenue", "top category", "salesperson", or "VIP customers")</div>
     </div>
     <div class="chat-footer">
       <input type="text" id="chat-input" placeholder="Ask a question..." />

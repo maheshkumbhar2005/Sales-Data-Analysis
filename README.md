@@ -150,11 +150,21 @@ See [`powerbi/README.md`](powerbi/README.md) for the recommended Power BI model 
 
 ## Contributions
 
-The following advanced features were contributed to this project to make it production-ready:
+For full development setup, coding standards, and PR guidelines, see [`CONTRIBUTING.md`](CONTRIBUTING.md).  
+For the complete release history, see [`CHANGELOG.md`](CHANGELOG.md).
+
+### Today's Contribution (October 14, 2026 — v2.0.0 Release)
+- **Forecast Confidence Intervals (Prediction Corridors)**: 95% confidence bounds calculated via residual standard error and visualised as a shaded prediction corridor on the Chart.js forecast chart.
+- **Customer Cohort Retention Analysis**: Computed monthly repeat purchase retention matrix across customer acquisition cohorts with interactive heatmaps and metrics badges.
+- **Interactive 3D Plotly Visualizations**: Standalone 3D RFM behavioral scatter plot (`rfm_3d_scatter.html`) and interactive cohort retention heatmap (`cohort_retention.html`).
+- **Drag & Drop CSV Dataset Uploader**: Real-time modal with schema validation (`POST /api/upload`) for rapid dataset switching without manual restarts.
+- **Multi-Currency Switcher**: Seamless live currency conversion between USD ($) and INR (₹) across all KPI cards, metrics, and data tables.
+- **Interactive Data Grid**: Real-time text search, sortable headers, and pagination controls on raw transaction records.
+- **Add Order Form**: Interactive modal to append validated sales transactions directly into the dataset with automated pipeline execution.
+- **Automated Anomaly Alerting & Tests**: Proactive SMTP email alerting module (`src/alert.py`), SQLite connection leak resolution, and 100% passing pytest suite (31 tests).
+
+### Previous Contributions
 - **Dockerization**: Included `Dockerfile`s and `docker-compose.yml` for seamless multi-container orchestration.
-- **Real-time Data API**: Added a `POST /api/sales` endpoint in the Node backend to process live sales data.
+- **Real-time Data API**: Added `POST /api/sales` endpoint in the Node backend to process live sales data.
 - **Interactive Chatbot**: Built-in AI Data Assistant for natural language querying over sales metrics.
-- **Raw Data Grid**: A responsive data table embedded in the dashboard for transaction-level analysis.
-- **Cross-Filtering**: Dashboard charts are fully interactive, updating filters upon click.
-- **RFM Segmentation**: Added Customer Segmentation grouping (VIP, At Risk, New, Regular) in the Python pipeline.
-- **CI/CD & Alerting**: Created GitHub Actions workflows and a proactive SMTP email alerting script.
+- **RFM Customer Segmentation**: Quantile-based customer loyalty tiering (VIP, At Risk, New, Regular) with duplicate bin edge handling.
