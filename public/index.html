@@ -73,26 +73,99 @@
         </div>
       </header>
       <section class="toolbar" aria-label="Dashboard filters">
-        <label>Date range <span><input id="start-date" type="date"><i>to</i><input id="end-date" type="date"></span></label>
-        <label>Regions <select id="regions" multiple></select></label>
-        <label>Categories <select id="categories" multiple></select></label>
-        <label>Forecast <select id="periods"><option value="3">3 months</option><option value="6">6 months</option><option value="12">12 months</option></select></label>
-        <button id="reset" class="reset-button">Reset</button>
+        <div class="toolbar-presets">
+          <span class="preset-label">Presets:</span>
+          <button type="button" class="preset-btn" data-preset="all">All Time</button>
+          <button type="button" class="preset-btn" data-preset="30d">Last 30 Days</button>
+          <button type="button" class="preset-btn" data-preset="90d">Last 90 Days</button>
+          <button type="button" class="preset-btn" data-preset="ytd">YTD</button>
+          <button type="button" class="preset-btn" data-preset="1y">Past 1 Year</button>
+        </div>
+        <div class="toolbar-filters">
+          <label>Date range <span><input id="start-date" type="date"><i>to</i><input id="end-date" type="date"></span></label>
+          <label>Regions <select id="regions" multiple></select></label>
+          <label>Categories <select id="categories" multiple></select></label>
+          <label>Salesperson
+            <select id="salespersons">
+              <option value="">All Salespeople</option>
+            </select>
+          </label>
+          <label>Forecast <select id="periods"><option value="3">3 months</option><option value="6">6 months</option><option value="12">12 months</option></select></label>
+          <button id="reset" class="reset-button">Reset All</button>
+        </div>
+        <div id="active-filter-banner" class="active-filter-banner hidden">
+          <span>Active Drill-down: <strong id="active-filter-name">None</strong></span>
+          <button type="button" id="clear-active-filter" class="clear-filter-btn">✕ Clear Filter</button>
+        </div>
       </section>
       <div id="empty-state" class="empty-state hidden">No sales match these filters. Try widening your date range or selecting more categories.</div>
       <div id="dashboard">
         <section id="overview" class="metric-grid">
+          <div class="target-card">
+            <div class="target-info">
+              <h3>🎯 Commercial Revenue Target (2025-2026)</h3>
+              <p>Real-time progress toward commercial benchmark ($300k / ₹2.5 Cr)</p>
+            </div>
+            <div class="target-progress-wrap">
+              <div class="target-meta">
+                <span id="target-achieved-text">Achieved: --</span>
+                <span id="target-pct-text">--%</span>
+              </div>
+              <div class="target-bar-track">
+                <div id="target-bar-fill" class="target-bar-fill"></div>
+              </div>
+            </div>
+          </div>
           <article class="metric accent"><span>Total revenue</span><strong id="revenue">--</strong><small id="growth">--</small></article>
           <article class="metric"><span>Units sold</span><strong id="units">--</strong><small id="orders">-- orders</small></article>
           <article class="metric"><span>Estimated profit</span><strong id="profit">--</strong><small id="margin">-- margin</small></article>
           <article class="metric"><span>Average order</span><strong id="avg-order">--</strong><small>per transaction</small></article>
-          <article class="metric highlight"><span>Top category</span><strong id="top-category">--</strong><small id="top-region">-- leads by region</small></article>
-          <article class="metric"><span>Top salesperson</span><strong id="top-salesperson">--</strong><small id="unique-customers">-- unique customers</small></article>
-          <article class="metric"><span>Total shipping</span><strong id="total-shipping">--</strong><small>across all orders</small></article>
+          <article class="metric highlight"><span>Customer Lifetime Value</span><strong id="avg-ltv">--</strong><small id="unique-customers">-- unique buyers</small></article>
+          <article class="metric"><span>Avg Discount Given</span><strong id="avg-discount">--</strong><small id="total-shipping">-- shipping</small></article>
+          <article class="metric"><span>Fulfillment Rate</span><strong id="delivery-rate">--</strong><small id="return-rate">-- return rate</small></article>
+          <article class="metric"><span>Top Performer</span><strong id="top-salesperson">--</strong><small id="top-category">-- in top category</small></article>
         </section>
         <section class="insight-row"><div class="section-heading"><p class="eyebrow">At a glance</p><h2>What the data says</h2></div><div id="insights" class="insights"></div><div class="anomaly-box"><div class="box-title"><span class="status-icon">!</span><div><h3>Anomaly watch</h3><p>Unusual monthly patterns</p></div></div><div id="anomalies"></div></div></section>
-        <section id="trends" class="content-grid"><article class="panel wide"><div class="panel-header"><div><p class="eyebrow">Trajectory</p><h2>Revenue and units</h2></div><span class="legend"><i class="orange"></i> Revenue <i class="teal"></i> Units</span></div><div class="chart-wrap"><canvas id="trend-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Momentum</p><h2>Monthly growth</h2></div></div><div class="chart-wrap compact"><canvas id="growth-chart"></canvas></div></article></section>
-        <section id="performance" class="content-grid lower"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Mix</p><h2>Category contribution</h2></div></div><div class="chart-wrap doughnut"><canvas id="category-chart"></canvas></div><div id="category-list" class="rank-list"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Leaderboard</p><h2>Top products by units</h2></div></div><div class="chart-wrap product-chart"><canvas id="product-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Geography</p><h2>Regional performance</h2></div></div><div id="region-list" class="region-list"></div></article></section>
+        <section id="trends" class="content-grid">
+          <article class="panel wide">
+            <div class="panel-header">
+              <div><p class="eyebrow">Trajectory</p><h2>Revenue and units</h2></div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="legend"><i class="orange"></i> Revenue <i class="teal"></i> Units</span>
+                <button type="button" class="chart-export-btn" data-chart="trend" title="Export this chart as PNG image">📷 PNG</button>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">Momentum</p><h2>Monthly growth</h2></div>
+              <button type="button" class="chart-export-btn" data-chart="growth" title="Export this chart as PNG image">📷 PNG</button>
+            </div>
+            <div class="chart-wrap compact"><canvas id="growth-chart"></canvas></div>
+          </article>
+        </section>
+        <section id="performance" class="content-grid lower">
+          <article class="panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">Mix</p><h2>Category contribution</h2></div>
+              <button type="button" class="chart-export-btn" data-chart="category" title="Export this chart as PNG image">📷 PNG</button>
+            </div>
+            <div class="chart-wrap doughnut"><canvas id="category-chart"></canvas></div>
+            <div id="category-list" class="rank-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">Leaderboard</p><h2>Top products by units</h2></div>
+              <button type="button" class="chart-export-btn" data-chart="product" title="Export this chart as PNG image">📷 PNG</button>
+            </div>
+            <div class="chart-wrap product-chart"><canvas id="product-chart"></canvas></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><p class="eyebrow">Geography</p><h2>Regional performance</h2></div></div>
+            <div id="region-list" class="region-list"></div>
+          </article>
+        </section>
         <section id="people" class="content-grid lower"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Team</p><h2>Salesperson performance</h2></div></div><div id="salesperson-list" class="rank-list"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Payments</p><h2>Payment methods</h2></div></div><div class="chart-wrap doughnut"><canvas id="payment-chart"></canvas></div><div id="payment-list" class="rank-list"></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Customers</p><h2>Customer segments</h2></div></div><div class="chart-wrap doughnut"><canvas id="customer-type-chart"></canvas></div><div id="customer-type-list" class="rank-list"></div></article></section>
         <section id="order-status" class="content-grid" style="margin-bottom: 17px;"><article class="panel"><div class="panel-header"><div><p class="eyebrow">Fulfillment</p><h2>Order status distribution</h2></div></div><div class="chart-wrap compact"><canvas id="status-chart"></canvas></div></article><article class="panel"><div class="panel-header"><div><p class="eyebrow">Status breakdown</p><h2>Order counts</h2></div></div><div id="status-list" class="region-list"></div></article></section>
         <section id="forecast" class="content-grid forecast-section">
@@ -217,7 +290,7 @@
             <div class="panel-header">
               <div><p class="eyebrow">Data Grid</p><h2>Raw Transactions</h2></div>
               <div class="table-toolbar">
-                <input type="search" id="table-search" placeholder="Search orders, customers, products..." class="table-search-input">
+                <input type="search" id="table-search" placeholder="Search orders, customers, products, regions..." class="table-search-input">
                 <label class="page-size-label">Show:
                   <select id="page-size" class="page-size-select">
                     <option value="15">15</option>
@@ -226,6 +299,9 @@
                     <option value="all">All</option>
                   </select>
                 </label>
+                <button type="button" id="export-filtered-csv" class="download-button" title="Export current filtered view to CSV">
+                  <span>📥</span> Export Filtered
+                </button>
               </div>
             </div>
             <div style="overflow-x:auto;">
@@ -240,6 +316,8 @@
                     <th class="sortable" data-sort="region">Region <span class="sort-icon">↕</span></th>
                     <th class="sortable" data-sort="units">Units <span class="sort-icon">↕</span></th>
                     <th class="sortable" data-sort="revenue">Revenue <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="profit">Profit <span class="sort-icon">↕</span></th>
+                    <th>Shipping Alert</th>
                     <th class="sortable" data-sort="orderStatus">Status <span class="sort-icon">↕</span></th>
                   </tr>
                 </thead>

@@ -93,6 +93,8 @@ function queryString() {
   if (end) query.set("end", end);
   document.querySelectorAll("#regions option:checked").forEach((option) => query.append("region", option.value));
   document.querySelectorAll("#categories option:checked").forEach((option) => query.append("category", option.value));
+  const spSelect = document.querySelector("#salespersons");
+  if (spSelect && spSelect.value) query.set("salesperson", spSelect.value);
   query.set("periods", document.querySelector("#periods").value);
   return query;
 }
@@ -440,8 +442,23 @@ function renderLists(data) {
   // Salesperson performance list
   if (data.salespersons && data.salespersons.length) {
     document.querySelector("#salesperson-list").innerHTML = data.salespersons.map((item, index) =>
-      `<div class="rank-row"><span><b style="color:${currentColors[index % currentColors.length]}">●</b> ${item.name}</span><b>${formatMoneyShort(item.revenue)}</b></div>`
+      `<div class="rank-row clickable-salesperson" data-salesperson="${item.name}" title="Click to drill down into ${item.name}'s transactions" style="cursor:pointer;">
+        <span><b style="color:${currentColors[index % currentColors.length]}">●</b> ${item.name}</span>
+        <b>${formatMoneyShort(item.revenue)} <i>🔍</i></b>
+      </div>`
     ).join("");
+
+    document.querySelectorAll(".clickable-salesperson").forEach(row => {
+      row.onclick = () => {
+        const name = row.getAttribute("data-salesperson");
+        const spSelect = document.querySelector("#salespersons");
+        if (spSelect) {
+          spSelect.value = name;
+          updateActiveFilterBanner(name);
+          load();
+        }
+      };
+    });
   }
 
   // Payment method list
@@ -506,9 +523,13 @@ function renderRFM(rfmData) {
   if (newEl) newEl.textContent = number.format(newC.length);
   if (regEl) regEl.textContent = number.format(reg.length);
 
-  const rfmBody = document.querySelector("#rfm-table-body");
-  if (rfmBody) {
-    rfmBody.innerHTML = rfmData.slice(0, 20).map(c => {
+  let activeSegment = window._rfmFilter || null;
+
+  const renderFilteredRFM = () => {
+    const rfmBody = document.querySelector("#rfm-table-body");
+    if (!rfmBody) return;
+    const filteredCustomers = activeSegment ? rfmData.filter(c => c.Segment === activeSegment) : rfmData;
+    rfmBody.innerHTML = filteredCustomers.slice(0, 25).map(c => {
       const segClass = c.Segment.toLowerCase().replace(" ", "-");
       return `<tr>
         <td><b>${c.Customer_ID}</b></td>
@@ -518,7 +539,27 @@ function renderRFM(rfmData) {
         <td><span class="segment-badge ${segClass}">${c.Segment}</span></td>
       </tr>`;
     }).join("");
-  }
+  };
+
+  document.querySelectorAll(".rfm-card").forEach(card => {
+    card.onclick = () => {
+      const segName = card.classList.contains("vip") ? "VIP" :
+                      card.classList.contains("at-risk") ? "At Risk" :
+                      card.classList.contains("new") ? "New" : "Regular";
+      if (activeSegment === segName) {
+        activeSegment = null;
+        card.classList.remove("active");
+      } else {
+        document.querySelectorAll(".rfm-card").forEach(c => c.classList.remove("active"));
+        card.classList.add("active");
+        activeSegment = segName;
+      }
+      window._rfmFilter = activeSegment;
+      renderFilteredRFM();
+    };
+  });
+
+  renderFilteredRFM();
 }
 
 function renderCohort(cohortData) {
@@ -595,8 +636,13 @@ function renderTable(data) {
   const endIdx = startIdx + pageSize;
   const pageRows = rows.slice(startIdx, endIdx);
 
-  tableBody.innerHTML = pageRows.map(row => 
-    `<tr>
+  tableBody.innerHTML = pageRows.map(row => {
+    const isShippingHigh = (row.shippingCost || 0) > (row.profit || 0);
+    const alertBadge = isShippingHigh
+      ? `<span class="shipping-alert-badge risk" title="Shipping (${formatMoneyShort(row.shippingCost)}) exceeds profit (${formatMoneyShort(row.profit)})">⚠️ High Shipping</span>`
+      : `<span class="shipping-alert-badge ok">✓ Healthy</span>`;
+
+    return `<tr>
       <td><b>${row.orderId}</b></td>
       <td>${row.date}</td>
       <td>${row.customerName}</td>
@@ -605,9 +651,11 @@ function renderTable(data) {
       <td>${row.region}</td>
       <td>${number.format(row.units)}</td>
       <td>${formatMoneyShort(row.revenue)}</td>
-      <td>${row.orderStatus}</td>
-    </tr>`
-  ).join("");
+      <td style="color:${row.profit >= 0 ? 'var(--teal)' : 'var(--orange)'};font-weight:600;">${formatMoneyShort(row.profit)}</td>
+      <td>${alertBadge}</td>
+      <td><span class="status-pill ${(row.orderStatus || '').toLowerCase()}">${row.orderStatus}</span></td>
+    </tr>`;
+  }).join("");
 
   const pageInfo = document.querySelector("#pagination-info");
   if (pageInfo) {
@@ -870,11 +918,25 @@ function render(data) {
   document.querySelector("#profit").textContent = formatMoney(metrics.profit);
   document.querySelector("#margin").textContent = `${metrics.margin.toFixed(1)}% estimated margin`;
   document.querySelector("#avg-order").textContent = formatMoney(metrics.avgOrder);
+  
+  const avgLtvEl = document.querySelector("#avg-ltv");
+  if (avgLtvEl) avgLtvEl.textContent = formatMoney(metrics.avgLTV || 0);
+
+  const avgDiscEl = document.querySelector("#avg-discount");
+  if (avgDiscEl) avgDiscEl.textContent = `${(metrics.avgDiscount || 0).toFixed(1)}%`;
+
+  const deliveryRateEl = document.querySelector("#delivery-rate");
+  if (deliveryRateEl) deliveryRateEl.textContent = `${(metrics.deliveryRate || 0).toFixed(1)}%`;
+
+  const returnRateEl = document.querySelector("#return-rate");
+  if (returnRateEl) returnRateEl.textContent = `${(metrics.returnRate || 0).toFixed(1)}% return/cancel`;
+
   document.querySelector("#top-category").textContent = metrics.topCategory;
-  document.querySelector("#top-region").textContent = `${metrics.topRegion} leads by region`;
+  const topRegEl = document.querySelector("#top-region");
+  if (topRegEl) topRegEl.textContent = `${metrics.topRegion} leads by region`;
   document.querySelector("#top-salesperson").textContent = metrics.topSalesperson || "-";
   document.querySelector("#unique-customers").textContent = `${number.format(metrics.uniqueCustomers || 0)} unique customers`;
-  document.querySelector("#total-shipping").textContent = formatMoney(metrics.totalShipping || 0);
+  document.querySelector("#total-shipping").textContent = `${formatMoneyShort(metrics.totalShipping || 0)} shipping`;
   document.querySelector("#best-month").textContent = dateLabel(metrics.bestMonth);
   document.querySelector("#worst-month").textContent = dateLabel(metrics.worstMonth);
   document.querySelector("#forecast-total").textContent = formatMoney(data.forecast.reduce((total, item) => total + item.revenue, 0));
@@ -883,6 +945,17 @@ function render(data) {
   const maxRev = data.forecast.reduce((acc, item) => acc + (item.upperRevenue ?? item.revenue), 0);
   const corridorEl = document.querySelector("#forecast-corridor");
   if (corridorEl) corridorEl.textContent = `${formatMoneyShort(minRev)} – ${formatMoneyShort(maxRev)}`;
+
+  // Update Sales Target Progress
+  const ANNUAL_TARGET_USD = 300000;
+  const currentRev = metrics.revenue || 0;
+  const targetPct = Math.min(100, Math.round((currentRev / ANNUAL_TARGET_USD) * 100));
+  const achievedEl = document.querySelector("#target-achieved-text");
+  const pctEl = document.querySelector("#target-pct-text");
+  const fillEl = document.querySelector("#target-bar-fill");
+  if (achievedEl) achievedEl.textContent = `Achieved: ${formatMoneyShort(currentRev)} of ${formatMoneyShort(ANNUAL_TARGET_USD)}`;
+  if (pctEl) pctEl.textContent = `${targetPct}%`;
+  if (fillEl) fillEl.style.width = `${targetPct}%`;
 
   renderLists(data);
   renderCharts(data);
@@ -915,6 +988,113 @@ async function init() {
     currencyBtn.addEventListener("click", toggleCurrency);
   }
 
+  // Setup Date Presets
+  const presetBtns = document.querySelectorAll(".preset-btn");
+  presetBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      presetBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const preset = btn.getAttribute("data-preset");
+      const endInput = document.querySelector("#end-date");
+      const startInput = document.querySelector("#start-date");
+      if (!cachedDashboardData) return;
+
+      const maxDateStr = cachedDashboardData.filters.maxDate;
+      const minDateStr = cachedDashboardData.filters.minDate;
+      const maxDate = new Date(maxDateStr);
+
+      if (preset === "all") {
+        startInput.value = minDateStr;
+        endInput.value = maxDateStr;
+      } else if (preset === "30d") {
+        const d = new Date(maxDate);
+        d.setDate(d.getDate() - 30);
+        startInput.value = d.toISOString().slice(0, 10);
+        endInput.value = maxDateStr;
+      } else if (preset === "90d") {
+        const d = new Date(maxDate);
+        d.setDate(d.getDate() - 90);
+        startInput.value = d.toISOString().slice(0, 10);
+        endInput.value = maxDateStr;
+      } else if (preset === "ytd") {
+        startInput.value = `${maxDate.getFullYear()}-01-01`;
+        endInput.value = maxDateStr;
+      } else if (preset === "1y") {
+        const d = new Date(maxDate);
+        d.setFullYear(d.getFullYear() - 1);
+        startInput.value = d.toISOString().slice(0, 10);
+        endInput.value = maxDateStr;
+      }
+      load();
+    });
+  });
+
+  // Setup Chart Export PNG handlers
+  document.querySelectorAll(".chart-export-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const chartKey = btn.getAttribute("data-chart");
+      const chartInstance = charts[chartKey];
+      if (!chartInstance) return;
+      const imageUri = chartInstance.toBase64Image("image/png", 1.0);
+      const link = document.createElement("a");
+      link.download = `${chartKey}-chart-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = imageUri;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  });
+
+  // Setup Export Filtered CSV
+  document.querySelector("#export-filtered-csv")?.addEventListener("click", () => {
+    if (!cachedDashboardData || !cachedDashboardData.rows || !cachedDashboardData.rows.length) {
+      alert("No data available to export.");
+      return;
+    }
+    let rowsToExport = [...cachedDashboardData.rows];
+    if (tableState.search) {
+      const q = tableState.search.toLowerCase();
+      rowsToExport = rowsToExport.filter(r =>
+        (r.orderId && r.orderId.toLowerCase().includes(q)) ||
+        (r.customerName && r.customerName.toLowerCase().includes(q)) ||
+        (r.product && r.product.toLowerCase().includes(q)) ||
+        (r.category && r.category.toLowerCase().includes(q)) ||
+        (r.region && r.region.toLowerCase().includes(q)) ||
+        (r.orderStatus && r.orderStatus.toLowerCase().includes(q))
+      );
+    }
+    const headers = ["Order_ID", "Date", "Customer_ID", "Customer_Name", "Product", "Category", "Region", "Units_Sold", "Unit_Price", "Total_Sales", "Profit", "Discount", "Salesperson", "Payment_Method", "Order_Status"];
+    const csvContent = [
+      headers.join(","),
+      ...rowsToExport.map(r => [
+        `"${r.orderId || ''}"`,
+        `"${r.date || ''}"`,
+        `"${r.customerId || ''}"`,
+        `"${(r.customerName || '').replaceAll('"', '""')}"`,
+        `"${(r.product || '').replaceAll('"', '""')}"`,
+        `"${r.category || ''}"`,
+        `"${r.region || ''}"`,
+        r.units || 0,
+        r.price || 0,
+        r.revenue || 0,
+        r.profit || 0,
+        r.discount || 0,
+        `"${r.salesperson || ''}"`,
+        `"${r.paymentMethod || ''}"`,
+        `"${r.orderStatus || ''}"`
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `filtered_sales_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+
   setupTableControls();
   setupAddOrderModal();
   setupUploadModal();
@@ -932,15 +1112,46 @@ async function init() {
   document.querySelector("#end-date").value = data.filters.maxDate;
   fillSelect("regions", data.filters.regions);
   fillSelect("categories", data.filters.categories);
+  
+  const spSelect = document.querySelector("#salespersons");
+  if (spSelect && data.filters.salespersons) {
+    spSelect.innerHTML = `<option value="">All Salespeople</option>` + data.filters.salespersons.map(s => `<option value="${s}">${s}</option>`).join("");
+    spSelect.addEventListener("change", () => {
+      updateActiveFilterBanner(spSelect.value);
+      load();
+    });
+  }
+
+  document.querySelector("#clear-active-filter")?.addEventListener("click", () => {
+    if (spSelect) spSelect.value = "";
+    updateActiveFilterBanner("");
+    load();
+  });
+
   document.querySelectorAll("#start-date, #end-date, #regions, #categories, #periods").forEach((element) => element.addEventListener("change", load));
   document.querySelector("#reset").addEventListener("click", () => {
     document.querySelector("#start-date").value = data.filters.minDate;
     document.querySelector("#end-date").value = data.filters.maxDate;
+    document.querySelectorAll(".preset-btn").forEach((b) => b.classList.remove("active"));
     document.querySelectorAll("#regions option, #categories option").forEach((option) => { option.selected = true; });
+    if (spSelect) spSelect.value = "";
+    updateActiveFilterBanner("");
     document.querySelector("#periods").value = "3";
     load();
   });
   render(data);
+}
+
+function updateActiveFilterBanner(name) {
+  const banner = document.querySelector("#active-filter-banner");
+  const filterName = document.querySelector("#active-filter-name");
+  if (!banner || !filterName) return;
+  if (name) {
+    filterName.textContent = `Salesperson: ${name}`;
+    banner.classList.remove("hidden");
+  } else {
+    banner.classList.add("hidden");
+  }
 }
 
 init().catch((error) => {

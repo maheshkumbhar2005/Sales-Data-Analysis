@@ -22,6 +22,7 @@ function parseCsv(text) {
       cell += '"';
       index += 1;
     } else if (character === '"') {
+
       quoted = !quoted;
     } else if (character === "," && !quoted) {
       row.push(cell);
@@ -109,7 +110,7 @@ function linearForecast(months, periods) {
   const average = sum(months, "revenue") / n;
   const last = months[n - 1];
   const slope = n > 1 ? (last.revenue - months[0].revenue) / (n - 1) : 0;
-  
+
   // Calculate standard error of residuals
   let sumSqErr = 0;
   for (let i = 0; i < n; i++) {
@@ -136,12 +137,16 @@ function linearForecast(months, periods) {
   });
 }
 
-function buildDashboard(sales, params) {
+function buildDashboard(sales, params = {}) {
+  const filterRegions = Array.isArray(params.regions) ? params.regions : (params.region ? [params.region] : []);
+  const filterCategories = Array.isArray(params.categories) ? params.categories : (params.category ? [params.category] : []);
+  const salesperson = params.salesperson || "";
   const filtered = sales.filter((sale) =>
     (!params.start || sale.date >= params.start) &&
     (!params.end || sale.date <= params.end) &&
-    (!params.regions.length || params.regions.includes(sale.region)) &&
-    (!params.categories.length || params.categories.includes(sale.category))
+    (!filterRegions.length || filterRegions.includes(sale.region)) &&
+    (!filterCategories.length || filterCategories.includes(sale.category)) &&
+    (!salesperson || sale.salesperson === salesperson)
   );
   const revenue = sum(filtered, "revenue");
   const profit = sum(filtered, "profit");
@@ -212,6 +217,10 @@ function buildDashboard(sales, params) {
       topRegion: regions[0]?.name || "-",
       topSalesperson: salespersons[0]?.name || "-",
       uniqueCustomers,
+      avgLTV: uniqueCustomers ? revenue / uniqueCustomers : 0,
+      avgDiscount: filtered.length ? (filtered.reduce((acc, s) => acc + (s.discount || 0), 0) / filtered.length) * 100 : 0,
+      deliveryRate: filtered.length ? ((statusMap.get("Delivered") || 0) / filtered.length) * 100 : 0,
+      returnRate: filtered.length ? (((statusMap.get("Returned") || 0) + (statusMap.get("Cancelled") || 0)) / filtered.length) * 100 : 0,
       totalShipping,
       bestMonth: [...monthly].sort((a, b) => b.revenue - a.revenue)[0]?.month || "-",
       worstMonth: [...monthly].sort((a, b) => a.revenue - b.revenue)[0]?.month || "-",
@@ -264,6 +273,7 @@ function queryParams(url) {
     end: url.searchParams.get("end") || "",
     regions: url.searchParams.getAll("region"),
     categories: url.searchParams.getAll("category"),
+    salesperson: url.searchParams.get("salesperson") || "",
     periods: url.searchParams.get("periods") || "3",
   };
 }
@@ -312,7 +322,7 @@ const handleRequest = async (request, response) => {
 
           response.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
           response.end(JSON.stringify({ success: true, message: "Dataset uploaded successfully", count: sales.length }));
-        } catch(e) {
+        } catch (e) {
           response.writeHead(400, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ error: e.message }));
         }
@@ -325,7 +335,7 @@ const handleRequest = async (request, response) => {
       request.on("end", async () => {
         try {
           const payload = JSON.parse(body);
-          
+
           // Validate required fields
           const required = ["Product", "Category", "Region", "Units_Sold", "Unit_Price"];
           for (const field of required) {
@@ -336,7 +346,7 @@ const handleRequest = async (request, response) => {
               return;
             }
           }
-          
+
           const units = Number(payload.Units_Sold ?? payload.units_sold);
           const price = Number(payload.Unit_Price ?? payload.unit_price);
           if (isNaN(units) || units <= 0 || !Number.isInteger(units)) {
@@ -349,7 +359,7 @@ const handleRequest = async (request, response) => {
             response.end(JSON.stringify({ error: "Unit_Price must be a positive number." }));
             return;
           }
-          
+
           const validStatuses = new Set(["Delivered", "Shipped", "Processing", "Returned", "Cancelled"]);
           const status = payload.Order_Status || payload.order_status || "Delivered";
           if (!validStatuses.has(status)) {
@@ -410,21 +420,21 @@ const handleRequest = async (request, response) => {
             Order_Status: status
           };
 
-          const columns = ["Order_ID","Customer_ID","Customer_Name","Date","Product","Category","Region","Units_Sold","Unit_Price","Total_Sales","Cost_Price","Profit","Profit_Margin","Discount","Salesperson","Payment_Method","Customer_Type","Shipping_Cost","Order_Status"];
+          const columns = ["Order_ID", "Customer_ID", "Customer_Name", "Date", "Product", "Category", "Region", "Units_Sold", "Unit_Price", "Total_Sales", "Cost_Price", "Profit", "Profit_Margin", "Discount", "Salesperson", "Payment_Method", "Customer_Type", "Shipping_Cost", "Order_Status"];
           const row = "\n" + columns.map(c => `"${String(normalized[c] ?? "").replaceAll('"', '""')}"`).join(",");
-          
+
           await appendFile(dataPath, row);
-          
+
           sales = parseCsv(await readFile(dataPath, "utf8")).map(toSale).sort((a, b) => a.date.localeCompare(b.date));
-          
+
           exec("python main.py", async (err) => {
             if (err) console.error("Error running main.py:", err);
             else await loadAnalytics();
           });
-          
+
           response.writeHead(201, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
           response.end(JSON.stringify({ success: true, message: "Sale added and pipeline triggered", orderId }));
-        } catch(e) {
+        } catch (e) {
           response.writeHead(400, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ error: e.message }));
         }
@@ -438,18 +448,18 @@ const handleRequest = async (request, response) => {
         try {
           const payload = JSON.parse(body);
           const q = (payload.question || "").toLowerCase();
-          
+
           const dash = buildDashboard(sales, payload.filters || { regions: [], categories: [] });
           let answer = "";
-          
+
           if (q.includes("best month") || q.includes("top month") || q.includes("highest month")) {
             answer = `The best month for revenue was ${dash.metrics.bestMonth}.`;
           } else if (q.includes("worst month") || q.includes("lowest month")) {
             answer = `The lowest month for revenue was ${dash.metrics.worstMonth}.`;
           } else if (q.includes("revenue") || q.includes("total sales")) {
-            answer = `The total revenue for the current filters is $${dash.metrics.revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}.`;
+            answer = `The total revenue for the current filters is $${dash.metrics.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`;
           } else if (q.includes("profit") || q.includes("margin")) {
-            answer = `Estimated profit is $${dash.metrics.profit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} with an estimated margin of ${dash.metrics.margin.toFixed(1)}%.`;
+            answer = `Estimated profit is $${dash.metrics.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} with an estimated margin of ${dash.metrics.margin.toFixed(1)}%.`;
           } else if (q.includes("category") || q.includes("top category")) {
             answer = `The highest generating category is ${dash.metrics.topCategory}.`;
           } else if (q.includes("product") || q.includes("top product")) {
@@ -459,7 +469,7 @@ const handleRequest = async (request, response) => {
           } else if (q.includes("region") || q.includes("geography")) {
             answer = `The leading region by revenue is ${dash.metrics.topRegion}.`;
           } else if (q.includes("shipping") || q.includes("delivery cost")) {
-            answer = `Total shipping expenses across orders sum to $${dash.metrics.totalShipping.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}.`;
+            answer = `Total shipping expenses across orders sum to $${dash.metrics.totalShipping.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`;
           } else if (q.includes("status") || q.includes("delivery") || q.includes("return")) {
             const statusSummary = (dash.orderStatuses || []).map(s => `${s.status}: ${s.count}`).join(", ");
             answer = `Order fulfillment breakdown: ${statusSummary}.`;
@@ -476,10 +486,11 @@ const handleRequest = async (request, response) => {
           } else {
             answer = `I can answer queries about total revenue, best/worst months, top products/categories, salespeople, regions, order fulfillment, RFM VIP customers, and profit margins. What would you like to know?`;
           }
-          
+
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ answer }));
-        } catch(e) {
+        } catch (e) {
+          console.error("Chat error:", e);
           response.writeHead(400, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ error: e.message }));
         }
@@ -535,6 +546,6 @@ server.listen(port, () => console.log(`Sales dashboard running at http://localho
 
 if (port !== 3000) {
   const altServer = createServer(handleRequest);
-  altServer.on("error", () => {});
+  altServer.on("error", () => { });
   altServer.listen(3000, () => console.log(`Also accessible at http://localhost:3000`));
 }
